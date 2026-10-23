@@ -29,3 +29,12 @@ All rights not expressly granted remain with the copyright holder.
 ## 5. Disclaimer
 
 This software is provided "as is", without warranty of any kind, to the extent permitted by applicable law.
+
+# Installation
+
+Choose between the .exe file that install RawPilot on your computeur and is not portable or you can choose to download the entire file with a simple use and is portable so it can be load on something portable and be used on every computeur
+
+portable version usage:
+
+first usage use .bat file number 1 to properly install everything in the file.
+second and more usage just launch RawPilot with .bat called 2
