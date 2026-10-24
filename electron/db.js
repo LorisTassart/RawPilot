@@ -34,6 +34,8 @@ function defaultConfig() {
     rawEnabled: false,
     rawFormats: [],
     autoConvert: true,
+    diskAlertGb: 20,
+    theme: 'dark',
     checklistSteps: JSON.parse(JSON.stringify(DEFAULT_CHECKLIST_STEPS)),
   };
 }
@@ -48,6 +50,8 @@ function migrate(data) {
   if (data.config.rawEnabled === undefined) data.config.rawEnabled = false;
   if (!Array.isArray(data.config.rawFormats)) data.config.rawFormats = [];
   if (data.config.autoConvert === undefined) data.config.autoConvert = true;
+  if (typeof data.config.diskAlertGb !== 'number') data.config.diskAlertGb = 20;
+  if (!['dark', 'light', 'system'].includes(data.config.theme)) data.config.theme = 'dark';
   if (!Array.isArray(data.config.checklistSteps) || data.config.checklistSteps.length === 0) {
     data.config.checklistSteps = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST_STEPS));
   }

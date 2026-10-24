@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Config, Session, SessionCategory, UnmatchedFolder } from './types';
+import { Config, DiskInfo, Session, SessionCategory, UnmatchedFolder } from './types';
+import { applyTheme } from './theme';
 import WelcomeSetup from './components/WelcomeSetup';
 import Sidebar from './components/Sidebar';
 import SessionDetail from './components/SessionDetail';
@@ -25,6 +26,7 @@ export default function App() {
   const [missing, setMissing] = useState<Session[]>([]);
   const [showMissing, setShowMissing] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [diskInfo, setDiskInfo] = useState<DiskInfo | null>(null);
   const [showDocuments, setShowDocuments] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'todo' | 'progress' | 'done'>('all');
   const [filterCategory, setFilterCategory] = useState<'all' | SessionCategory>('all');
@@ -44,6 +46,38 @@ export default function App() {
     const t = setTimeout(() => setNotice(null), 5000);
     return () => clearTimeout(t);
   }, [notice]);
+
+  // Applique le thème choisi (et suit le réglage Windows si "Système").
+  useEffect(() => {
+    const pref = config?.theme ?? 'dark';
+    applyTheme(pref);
+    if (pref !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = () => applyTheme('system');
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [config?.theme]);
+
+  // Surveille l'espace disque des archives (au démarrage, chaque minute, et au retour sur la fenêtre).
+  useEffect(() => {
+    if (!config?.rootPath) {
+      setDiskInfo(null);
+      return;
+    }
+    const refreshDisk = () => {
+      window.rawpilot.disk
+        .getInfo()
+        .then(setDiskInfo)
+        .catch(() => setDiskInfo(null));
+    };
+    refreshDisk();
+    const t = setInterval(refreshDisk, 60000);
+    window.addEventListener('focus', refreshDisk);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', refreshDisk);
+    };
+  }, [config?.rootPath]);
 
   async function loadSessions(query?: string) {
     const q = query ?? search;
@@ -248,6 +282,8 @@ export default function App() {
         filterYear={filterYear}
         onFilterYearChange={setFilterYear}
         availableYears={availableYears}
+        diskInfo={diskInfo}
+        diskAlertGb={config?.diskAlertGb ?? 20}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
@@ -258,7 +294,7 @@ export default function App() {
         )}
 
         {showDashboard ? (
-          <Dashboard sessions={sessions} />
+          <Dashboard sessions={sessions} disk={diskInfo} diskAlertGb={config?.diskAlertGb ?? 20} />
         ) : showDocuments ? (
           <DocumentsPanel />
         ) : selected ? (

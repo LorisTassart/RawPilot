@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ChecklistStep, Config, RawFormatOption } from '../types';
+import ThemeSettings from './ThemeSettings';
+import DiskSettings from './DiskSettings';
 
 interface Props {
   config: Config;
@@ -332,6 +334,16 @@ export default function SettingsModal({
             >
               {savingSteps ? 'Enregistrement…' : 'Enregistrer'}
             </button>
+          </section>
+
+          <section>
+            <h3 className="text-xs font-semibold text-ink-dim uppercase tracking-wide mb-2">Apparence</h3>
+            <ThemeSettings config={config} onConfigChanged={onConfigChanged} />
+          </section>
+
+          <section>
+            <h3 className="text-xs font-semibold text-ink-dim uppercase tracking-wide mb-2">Espace disque</h3>
+            <DiskSettings config={config} onConfigChanged={onConfigChanged} />
           </section>
 
           {/* Mode développeur — jamais visible en dehors de "npm run dev" */}

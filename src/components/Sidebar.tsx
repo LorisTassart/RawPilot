@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Session, SessionCategory } from '../types';
+import { DiskInfo, Session, SessionCategory } from '../types';
 import StatusDot from './StatusDot';
 import SearchBar from './SearchBar';
+import DiskIndicator from './DiskIndicator';
 import logo from '../assets/logo.png';
 
 interface Props {
@@ -26,6 +27,8 @@ interface Props {
   filterYear: 'all' | number;
   onFilterYearChange: (v: 'all' | number) => void;
   availableYears: number[];
+  diskInfo: DiskInfo | null;
+  diskAlertGb: number;
 }
 
 export default function Sidebar({
@@ -50,6 +53,8 @@ export default function Sidebar({
   filterYear,
   onFilterYearChange,
   availableYears,
+  diskInfo,
+  diskAlertGb,
 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -228,6 +233,7 @@ export default function Sidebar({
           </div>
         ))}
       </div>
+      <DiskIndicator info={diskInfo} alertGb={diskAlertGb} />
     </aside>
   );
 }

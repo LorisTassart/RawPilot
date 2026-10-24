@@ -4,6 +4,8 @@ import StatusDot from './StatusDot';
 import EditSessionModal from './EditSessionModal';
 import DocumentList from './DocumentList';
 import EventPoster from './EventPoster';
+import MissingFiles from './MissingFiles';
+import PhotoThumbnails from './PhotoThumbnails';
 
 interface Props {
   session: Session;
@@ -143,12 +145,9 @@ export default function SessionDetail({
           </div>
         </div>
 
-        {mismatch && (
-          <div className="bg-status-progress/10 border border-status-progress/40 text-status-progress text-sm rounded-xl px-4 py-3 mb-6">
-            🟠 Attention — {session.nefCount} RAW mais {session.jpegCount} JPEG. Certaines photos n'ont peut-être pas
-            été converties.
-          </div>
-        )}
+        {rawEnabled && session.nefCount > 0 && <MissingFiles session={session} />}
+
+        <PhotoThumbnails key={session.id} session={session} />
 
         {session.notes && (
           <div className="bg-base-surface border border-base-border rounded-xl px-4 py-3 mb-6 text-sm text-ink-dim whitespace-pre-wrap">

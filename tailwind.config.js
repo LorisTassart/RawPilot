@@ -5,24 +5,24 @@ export default {
     extend: {
       colors: {
         base: {
-          bg: '#0e1013',
-          surface: '#161a1f',
-          surface2: '#1d2229',
-          border: '#272d36',
+          bg: 'rgb(var(--c-bg) / <alpha-value>)',
+          surface: 'rgb(var(--c-surface) / <alpha-value>)',
+          surface2: 'rgb(var(--c-surface2) / <alpha-value>)',
+          border: 'rgb(var(--c-border) / <alpha-value>)',
         },
         accent: {
-          DEFAULT: '#5b8def',
-          dim: '#3d5f9e',
+          DEFAULT: 'rgb(var(--c-accent) / <alpha-value>)',
+          dim: 'rgb(var(--c-accent-dim) / <alpha-value>)',
         },
         status: {
-          todo: '#e6584f',
-          progress: '#e8a33d',
-          done: '#4cae6d',
+          todo: 'rgb(var(--c-todo) / <alpha-value>)',
+          progress: 'rgb(var(--c-progress) / <alpha-value>)',
+          done: 'rgb(var(--c-done) / <alpha-value>)',
         },
         ink: {
-          DEFAULT: '#e8e6e1',
-          dim: '#9aa0a8',
-          faint: '#5c636d',
+          DEFAULT: 'rgb(var(--c-ink) / <alpha-value>)',
+          dim: 'rgb(var(--c-ink-dim) / <alpha-value>)',
+          faint: 'rgb(var(--c-ink-faint) / <alpha-value>)',
         },
       },
       fontFamily: {

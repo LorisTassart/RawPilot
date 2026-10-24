@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, session, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
@@ -689,6 +689,155 @@ ipcMain.handle('sessions:importPhotos', async (_evt, { id }) => {
 });
 
 // ---------- IPC: search ----------
+
+// ---------- IPC: Détection fine des fichiers manquants ----------
+
+const JPEG_EXTENSIONS = ['.jpg', '.jpeg'];
+const PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
+
+ipcMain.handle('sessions:getMissing', async (_evt, { id }) => {
+  const db = getDb();
+  const session = db.data.sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session introuvable');
+  const rawDir = resolveSubfolder(session.folderPath, RAW_NAMES);
+  const jpegDir = resolveSubfolder(session.folderPath, JPEG_NAMES);
+  const baseName = (f) => path.parse(f).name.toLowerCase();
+  const rawFiles = rawDir
+    ? fs.readdirSync(rawDir).filter((f) => RAW_COUNT_EXTENSIONS.includes(path.extname(f).toLowerCase()))
+    : [];
+  const jpegBases = new Set(
+    jpegDir
+      ? fs.readdirSync(jpegDir).filter((f) => JPEG_EXTENSIONS.includes(path.extname(f).toLowerCase())).map(baseName)
+      : []
+  );
+  const missingJpeg = rawFiles.filter((f) => !jpegBases.has(baseName(f))).sort((a, b) => a.localeCompare(b));
+  return { rawCount: rawFiles.length, missingJpeg };
+});
+
+// ---------- IPC: Miniatures des photos ----------
+
+const thumbCache = new Map();
+
+async function makeThumbnail(filePath, size) {
+  const stat = fs.statSync(filePath);
+  const key = `${filePath}|${stat.mtimeMs}|${size}`;
+  if (thumbCache.has(key)) return thumbCache.get(key);
+
+  let img = null;
+  try {
+    // Windows / macOS : miniature fournie par le système (rapide, sans décoder toute l'image)
+    img = await nativeImage.createThumbnailFromPath(filePath, { width: size, height: size });
+  } catch (e) {
+    img = null;
+  }
+  if (!img || img.isEmpty()) {
+    const full = nativeImage.createFromPath(filePath);
+    if (full.isEmpty()) return null;
+    const s = full.getSize();
+    img = full.resize(s.width >= s.height ? { width: size, quality: 'good' } : { height: size, quality: 'good' });
+  }
+  const dataUrl = `data:image/jpeg;base64,${img.toJPEG(75).toString('base64')}`;
+  thumbCache.set(key, dataUrl);
+  if (thumbCache.size > 600) thumbCache.delete(thumbCache.keys().next().value);
+  return dataUrl;
+}
+
+function photoFolderFor(session, folder) {
+  const names = folder === 'retouche' ? RETOUCHE_NAMES : JPEG_NAMES;
+  return resolveSubfolder(session.folderPath, names);
+}
+
+function listPhotoFiles(dir) {
+  if (!dir) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((f) => !f.startsWith('.') && PHOTO_EXTENSIONS.includes(path.extname(f).toLowerCase()))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+ipcMain.handle('sessions:getThumbnails', async (_evt, { id, folder, offset, limit }) => {
+  const db = getDb();
+  const session = db.data.sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session introuvable');
+  const dir = photoFolderFor(session, folder);
+  const files = listPhotoFiles(dir);
+  const start = Math.max(0, offset || 0);
+  const slice = files.slice(start, start + Math.min(limit || 24, 60));
+  const items = [];
+  for (const name of slice) {
+    let dataUrl = null;
+    try {
+      dataUrl = await makeThumbnail(path.join(dir, name), 240);
+    } catch (e) {
+      dataUrl = null;
+    }
+    items.push({ name, dataUrl });
+  }
+  return { total: files.length, items };
+});
+
+ipcMain.handle('sessions:openPhoto', async (_evt, { id, folder, name }) => {
+  const db = getDb();
+  const session = db.data.sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session introuvable');
+  if (path.basename(name) !== name) throw new Error('Nom de fichier invalide.');
+  const dir = photoFolderFor(session, folder);
+  if (!dir) throw new Error('Dossier introuvable.');
+  const res = await shell.openPath(path.join(dir, name));
+  if (res) throw new Error(res);
+  return true;
+});
+
+// ---------- IPC: Espace disque ----------
+
+ipcMain.handle('disk:getInfo', async () => {
+  const db = getDb();
+  const rootPath = db.data.config.rootPath;
+  if (!rootPath || !fs.existsSync(rootPath)) return null;
+  try {
+    const st = await fs.promises.statfs(rootPath);
+    return {
+      freeBytes: Number(st.bavail) * Number(st.bsize),
+      totalBytes: Number(st.blocks) * Number(st.bsize),
+    };
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('config:updateDiskSettings', async (_evt, { diskAlertGb }) => {
+  const n = Number(diskAlertGb);
+  if (!Number.isFinite(n) || n < 0 || n > 100000) throw new Error('Seuil invalide.');
+  const db = getDb();
+  db.data.config.diskAlertGb = Math.round(n);
+  await db.write();
+  return { ...db.data.config, isDev: isDevMode() };
+});
+
+// ---------- IPC: Thème clair / sombre ----------
+
+ipcMain.handle('config:updateTheme', async (_evt, { theme }) => {
+  if (!['dark', 'light', 'system'].includes(theme)) throw new Error('Thème inconnu.');
+  const db = getDb();
+  db.data.config.theme = theme;
+  await db.write();
+  return { ...db.data.config, isDev: isDevMode() };
+});
+
+// Adapte la fenêtre (fond + bande de titre Windows) au thème réellement affiché.
+ipcMain.handle('app:applyTheme', async (_evt, { resolved }) => {
+  if (!mainWindow) return false;
+  const dark = resolved !== 'light';
+  mainWindow.setBackgroundColor(dark ? '#0e1013' : '#f3f4f6');
+  if (process.platform === 'win32' && typeof mainWindow.setTitleBarOverlay === 'function') {
+    mainWindow.setTitleBarOverlay({
+      color: dark ? '#161a1f' : '#ffffff',
+      symbolColor: dark ? '#e8e6e1' : '#1a1d21',
+      height: 32,
+    });
+  }
+  return true;
+});
 
 // ---------- IPC: Affiche d'événement ----------
 

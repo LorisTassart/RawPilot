@@ -30,12 +30,21 @@ export interface Session {
   status: SessionStatus;
 }
 
+export type ThemePref = 'dark' | 'light' | 'system';
+
+export interface DiskInfo {
+  freeBytes: number;
+  totalBytes: number;
+}
+
 export interface Config {
   rootPath: string | null;
   rawEnabled: boolean;
   rawFormats: string[];
   autoConvert: boolean;
   checklistSteps: ChecklistStep[];
+  diskAlertGb: number;
+  theme: ThemePref;
   isDev: boolean;
 }
 
@@ -70,6 +79,8 @@ declare global {
         selectRootFolder: () => Promise<Config | null>;
         resetToWelcome: () => Promise<Config>;
         rawCatalog: () => Promise<RawFormatOption[]>;
+        updateDiskSettings: (payload: { diskAlertGb: number }) => Promise<Config>;
+        updateTheme: (payload: { theme: ThemePref }) => Promise<Config>;
         updateRawSettings: (payload: {
           rawEnabled: boolean;
           rawFormats: string[];
@@ -118,9 +129,21 @@ declare global {
         getPoster: (payload: { id: string }) => Promise<string | null>;
         setPoster: (payload: { id: string }) => Promise<string | null>;
         removePoster: (payload: { id: string }) => Promise<boolean>;
+        getMissing: (payload: { id: string }) => Promise<{ rawCount: number; missingJpeg: string[] }>;
+        getThumbnails: (payload: {
+          id: string;
+          folder: 'jpeg' | 'retouche';
+          offset: number;
+          limit: number;
+        }) => Promise<{ total: number; items: { name: string; dataUrl: string | null }[] }>;
+        openPhoto: (payload: { id: string; folder: 'jpeg' | 'retouche'; name: string }) => Promise<boolean>;
+      };
+      disk: {
+        getInfo: () => Promise<DiskInfo | null>;
       };
       app: {
         isDev: () => Promise<boolean>;
+        applyTheme: (payload: { resolved: 'dark' | 'light' }) => Promise<boolean>;
         exportProfile: () => Promise<string | null>;
         importProfile: () => Promise<Config | null>;
         resetAll: () => Promise<Config>;

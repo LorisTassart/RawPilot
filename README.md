@@ -219,6 +219,20 @@ n'apparaît pour les sessions "Client" ou sans catégorie.
   L'avertissement "Insecure Content-Security-Policy" n'existe qu'en mode développement
   (`npm run dev`) et disparaît dans l'appli construite.
 
+## 🔍 Fichiers manquants, 🖼 aperçus, 💾 espace disque, 🎨 thème
+
+- **Détection fine des manquants** (si un format RAW est activé) : au lieu d'un simple
+  « 12 RAW / 10 JPEG », la session indique quels RAW précisément n'ont pas de JPEG
+  correspondant, avec la liste des fichiers concernés. Un « ✓ » apparaît quand tout est complet.
+- **Aperçu des photos** : section « 🖼 Aperçu des photos » dans le détail d'une session
+  (onglets JPEG / Retouchées), par pages de 24 miniatures. Un clic ouvre la photo dans ta
+  visionneuse habituelle. Sur Windows, les miniatures viennent du système, donc c'est rapide.
+- **Espace disque** : l'espace libre du disque où sont tes archives s'affiche en bas de la
+  barre latérale et dans le tableau de bord, et passe à l'orange puis au rouge sous ton seuil
+  d'alerte (réglable dans Paramètres → Espace disque, 20 Go par défaut, 0 pour désactiver).
+- **Thème clair** : Paramètres → Apparence, au choix Sombre, Clair ou Système (suit Windows).
+  La barre de titre change de couleur avec le thème.
+
 ## Comment ça marche
 
 - **Création d'un shooting** : tu donnes une date + un numéro de session (proposé

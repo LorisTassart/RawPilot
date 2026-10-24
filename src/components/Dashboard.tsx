@@ -1,4 +1,5 @@
-import { Session } from '../types';
+import { DiskInfo, Session } from '../types';
+import { DiskCard } from './DiskIndicator';
 
 function daysBetween(a: string, b: string) {
   const d1 = new Date(a).getTime();
@@ -6,7 +7,15 @@ function daysBetween(a: string, b: string) {
   return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
 }
 
-export default function Dashboard({ sessions }: { sessions: Session[] }) {
+export default function Dashboard({
+  sessions,
+  disk,
+  diskAlertGb,
+}: {
+  sessions: Session[];
+  disk?: DiskInfo | null;
+  diskAlertGb?: number;
+}) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
@@ -35,6 +44,8 @@ export default function Dashboard({ sessions }: { sessions: Session[] }) {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-2xl mx-auto px-8 py-8">
         <h2 className="text-2xl font-semibold mb-6">📊 Tableau de bord</h2>
+
+        <DiskCard info={disk ?? null} alertGb={diskAlertGb ?? 20} />
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <StatCard label="Sessions ce mois-ci" value={sessionsThisMonth} />
