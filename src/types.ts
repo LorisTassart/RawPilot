@@ -43,6 +43,7 @@ declare global {
       config: {
         get: () => Promise<Config>;
         selectRootFolder: () => Promise<Config | null>;
+        resetToWelcome: () => Promise<Config>;
       };
       sessions: {
         list: () => Promise<Session[]>;
@@ -60,6 +61,9 @@ declare global {
           date: string;
           sessionNumber: number;
         }) => Promise<Session>;
+        remove: (payload: { id: string }) => Promise<boolean>;
+        checkMissing: () => Promise<Session[]>;
+        relocate: (payload: { id: string }) => Promise<Session | null>;
         onImportProgress: (callback: (data: { id: string; done: number; total: number }) => void) => () => void;
       };
     };

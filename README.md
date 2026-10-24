@@ -78,6 +78,26 @@ depuis un autre appareil), le bouton **"⟳ Scanner les dossiers existants"** en
 barre de recherche relance ce scan à tout moment, sans dupliquer les sessions déjà
 connues.
 
+## Paramètres (icône ⚙ en haut de la barre latérale)
+
+- **Changer le dossier racine** : si tu déplaces ou renommes ton dossier d'archives,
+  choisis simplement son nouvel emplacement ici. RawPilot relance aussitôt un scan pour
+  retrouver tes sessions à cet endroit.
+- **Vérifier les dossiers manquants** : si après un déplacement certaines sessions ne
+  retrouvent pas leur dossier automatiquement (chemin différent, sous-dossier renommé...),
+  cet écran te les liste une par une avec un bouton "Localiser..." pour repointer chacune
+  vers son nouvel emplacement exact, ou "Retirer du suivi" si le dossier a vraiment
+  disparu.
+- **Revenir à l'écran de premier démarrage** : rouvre l'écran d'accueil initial pour
+  reconfigurer proprement le dossier racine. Aucune session suivie n'est supprimée.
+
+## Retirer une session du suivi
+
+Dans le détail d'une session, le lien discret en bas de page "Retirer cette session du
+suivi" l'enlève de la liste de RawPilot — **sans jamais supprimer, déplacer ou modifier
+le moindre fichier sur ton disque**. Utile si une session a été créée par erreur ou si tu
+ne veux plus la suivre.
+
 ## Comment ça marche
 
 - **Création d'un shooting** : tu donnes une date + un numéro de session (proposé

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Session } from '../types';
 import StatusDot from './StatusDot';
 import SearchBar from './SearchBar';
+import logo from '../assets/logo.png';
 
 interface Props {
   sessions: Session[];
@@ -11,6 +12,7 @@ interface Props {
   onRescan: () => void;
   unmatchedCount: number;
   onShowUnmatched: () => void;
+  onOpenSettings: () => void;
   search: string;
   onSearchChange: (v: string) => void;
 }
@@ -23,6 +25,7 @@ export default function Sidebar({
   onRescan,
   unmatchedCount,
   onShowUnmatched,
+  onOpenSettings,
   search,
   onSearchChange,
 }: Props) {
@@ -66,7 +69,17 @@ export default function Sidebar({
   return (
     <aside className="w-72 shrink-0 bg-base-surface border-r border-base-border flex flex-col h-full">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-        <h1 className="text-sm font-semibold tracking-wide text-ink">📷 RawPilot</h1>
+        <div className="flex items-center gap-2">
+          <img src={logo} alt="RawPilot" className="h-7 w-7 rounded-md object-cover" />
+          <h1 className="text-sm font-semibold tracking-wide text-ink">RawPilot</h1>
+        </div>
+        <button
+          onClick={onOpenSettings}
+          title="Paramètres"
+          className="text-ink-faint hover:text-ink text-sm w-7 h-7 flex items-center justify-center rounded-lg hover:bg-base-surface2"
+        >
+          ⚙
+        </button>
       </div>
       <div className="px-3">
         <button

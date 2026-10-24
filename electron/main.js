@@ -25,6 +25,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: '#0e1013',
     titleBarStyle: 'hiddenInset',
+    icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -129,6 +130,13 @@ ipcMain.handle('config:selectRootFolder', async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
   const db = getDb();
   db.data.config.rootPath = result.filePaths[0];
+  await db.write();
+  return db.data.config;
+});
+
+ipcMain.handle('config:resetToWelcome', async () => {
+  const db = getDb();
+  db.data.config.rootPath = null;
   await db.write();
   return db.data.config;
 });
@@ -323,6 +331,44 @@ ipcMain.handle('sessions:updateFlag', async (_evt, { id, field, value }) => {
   const allowed = ['statusPhone', 'statusRetouched', 'statusDone'];
   if (!allowed.includes(field)) throw new Error('Champ non autorisé');
   session[field] = value;
+  await db.write();
+  return { ...session, status: computeStatus(session) };
+});
+
+ipcMain.handle('sessions:remove', async (_evt, { id }) => {
+  const db = getDb();
+  const before = db.data.sessions.length;
+  db.data.sessions = db.data.sessions.filter((s) => s.id !== id);
+  if (db.data.sessions.length === before) throw new Error('Session introuvable');
+  await db.write();
+  // Important : on ne touche jamais aux fichiers sur le disque ici.
+  return true;
+});
+
+ipcMain.handle('sessions:checkMissing', async () => {
+  const db = getDb();
+  const missing = db.data.sessions.filter((s) => !fs.existsSync(s.folderPath));
+  return missing.map((s) => ({ ...s, status: computeStatus(s) }));
+});
+
+ipcMain.handle('sessions:relocate', async (_evt, { id }) => {
+  const db = getDb();
+  const session = db.data.sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session introuvable');
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: `Retrouve le nouveau chemin de : ${session.folderName}`,
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+
+  const newPath = result.filePaths[0];
+  session.folderPath = newPath;
+  session.folderName = path.basename(newPath);
+  session.hasMontage = resolveSubfolder(newPath, MONTAGE_NAMES) !== null;
+  session.nefCount = countInSubfolder(newPath, NEF_NAMES, ['.nef']);
+  session.jpegCount = countInSubfolder(newPath, JPEG_NAMES, ['.jpg', '.jpeg']);
+  session.retouchedCount = countInSubfolder(newPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']);
   await db.write();
   return { ...session, status: computeStatus(session) };
 });

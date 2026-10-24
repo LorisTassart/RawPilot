@@ -5,6 +5,8 @@ import Sidebar from './components/Sidebar';
 import SessionDetail from './components/SessionDetail';
 import NewSessionModal from './components/NewSessionModal';
 import UnmatchedFoldersModal from './components/UnmatchedFoldersModal';
+import SettingsModal from './components/SettingsModal';
+import MissingFoldersModal from './components/MissingFoldersModal';
 
 export default function App() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -16,6 +18,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [unmatched, setUnmatched] = useState<UnmatchedFolder[]>([]);
   const [showUnmatched, setShowUnmatched] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [missing, setMissing] = useState<Session[]>([]);
+  const [showMissing, setShowMissing] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -65,6 +70,38 @@ export default function App() {
 
   async function handleFolderImported(folderPath: string) {
     setUnmatched((prev) => prev.filter((f) => f.folderPath !== folderPath));
+    await loadSessions();
+  }
+
+  async function handleResetWelcome() {
+    const c = await window.rawpilot.config.resetToWelcome();
+    setConfig(c);
+    setShowSettings(false);
+    setSelectedId(null);
+  }
+
+  async function handleCheckMissing() {
+    setShowSettings(false);
+    const list = await window.rawpilot.sessions.checkMissing();
+    setMissing(list);
+    setShowMissing(true);
+  }
+
+  function handleMissingRelocated(id: string) {
+    setMissing((prev) => prev.filter((s) => s.id !== id));
+    void loadSessions();
+  }
+
+  function handleMissingRemoved(id: string) {
+    setMissing((prev) => prev.filter((s) => s.id !== id));
+    if (selectedId === id) setSelectedId(null);
+    void loadSessions();
+  }
+
+  async function handleRemoveSession() {
+    if (!selectedId) return;
+    await window.rawpilot.sessions.remove({ id: selectedId });
+    setSelectedId(null);
     await loadSessions();
   }
 
@@ -137,6 +174,7 @@ export default function App() {
         onRescan={handleRescan}
         unmatchedCount={unmatched.length}
         onShowUnmatched={() => setShowUnmatched(true)}
+        onOpenSettings={() => setShowSettings(true)}
         search={search}
         onSearchChange={handleSearchChange}
       />
@@ -155,6 +193,7 @@ export default function App() {
             onOpenFolder={handleOpenFolder}
             onImportNef={handleImportNef}
             onRefreshCounts={handleRefreshCounts}
+            onRemove={handleRemoveSession}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center">
@@ -177,6 +216,26 @@ export default function App() {
           folders={unmatched}
           onClose={() => setShowUnmatched(false)}
           onImported={handleFolderImported}
+        />
+      )}
+      {showSettings && (
+        <SettingsModal
+          rootPath={config?.rootPath ?? ''}
+          onClose={() => setShowSettings(false)}
+          onChangeRoot={() => {
+            setShowSettings(false);
+            handleChooseRoot();
+          }}
+          onResetWelcome={handleResetWelcome}
+          onCheckMissing={handleCheckMissing}
+        />
+      )}
+      {showMissing && (
+        <MissingFoldersModal
+          sessions={missing}
+          onClose={() => setShowMissing(false)}
+          onRelocated={handleMissingRelocated}
+          onRemoved={handleMissingRemoved}
         />
       )}
     </div>

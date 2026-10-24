@@ -8,6 +8,7 @@ interface Props {
   onOpenFolder: (sub?: string) => void;
   onImportNef: () => Promise<void>;
   onRefreshCounts: () => void;
+  onRemove: () => void;
 }
 
 function formatDate(dateStr: string) {
@@ -15,7 +16,7 @@ function formatDate(dateStr: string) {
   return `${d}/${m}/${y}`;
 }
 
-export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onImportNef, onRefreshCounts }: Props) {
+export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onImportNef, onRefreshCounts, onRemove }: Props) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -47,6 +48,13 @@ export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onI
       if (!ok) return;
     }
     onUpdateFlag(field, value);
+  }
+
+  function handleRemove() {
+    const ok = window.confirm(
+      `Retirer "Session ${session.sessionNumber}" du suivi RawPilot ?\n\nAucun fichier ne sera supprimé — la session disparaîtra juste de la liste de l'application.`
+    );
+    if (ok) onRemove();
   }
 
   return (
@@ -171,6 +179,12 @@ export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onI
             Ouvrir "Montage Réseaux"
           </button>
         )}
+
+        <div className="mt-8 pt-4 border-t border-base-border">
+          <button onClick={handleRemove} className="text-xs text-ink-faint hover:text-status-todo transition-colors">
+            Retirer cette session du suivi (les fichiers ne sont pas supprimés)
+          </button>
+        </div>
       </div>
     </div>
   );
