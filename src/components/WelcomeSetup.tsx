@@ -6,7 +6,9 @@ export default function WelcomeSetup({ onChoose }: { onChoose: () => void }) {
         <h1 className="text-2xl font-semibold mb-3">Bienvenue dans RawPilot</h1>
         <p className="text-ink-dim mb-8 leading-relaxed">
           Choisis le dossier racine où vivent déjà (ou vivront) tes archives par année.
-          RawPilot y créera automatiquement l'arborescence Année / Mois / Session.
+          RawPilot y créera automatiquement l'arborescence Année / Mois / Session, et
+          scannera aussi tout de suite ce dossier pour retrouver tes sessions déjà
+          existantes (rien n'est déplacé ni modifié sur ton disque).
         </p>
         <button
           onClick={onChoose}

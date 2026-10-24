@@ -8,11 +8,12 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onNewSession: () => void;
+  onRescan: () => void;
   search: string;
   onSearchChange: (v: string) => void;
 }
 
-export default function Sidebar({ sessions, selectedId, onSelect, onNewSession, search, onSearchChange }: Props) {
+export default function Sidebar({ sessions, selectedId, onSelect, onNewSession, onRescan, search, onSearchChange }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const tree = useMemo(() => {
@@ -64,6 +65,16 @@ export default function Sidebar({ sessions, selectedId, onSelect, onNewSession, 
         </button>
       </div>
       <SearchBar value={search} onChange={onSearchChange} />
+
+      <div className="px-3 pb-2 -mt-1">
+        <button
+          onClick={onRescan}
+          title="Retrouver des sessions ajoutées manuellement sur le disque"
+          className="text-[11px] text-ink-faint hover:text-ink-dim"
+        >
+          ⟳ Scanner les dossiers existants
+        </button>
+      </div>
 
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {tree.length === 0 && (

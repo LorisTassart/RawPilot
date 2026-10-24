@@ -94,6 +94,90 @@ ipcMain.handle('config:selectRootFolder', async () => {
   return db.data.config;
 });
 
+// ---------- Scan des sessions déjà existantes sur le disque ----------
+
+const SESSION_FOLDER_RE = /^Session\s+(\d+)\s*-\s*(\d{2})-(\d{2})-(\d{4})$/i;
+
+function findSessionFolders(dirPath, depth) {
+  const found = [];
+  if (depth > 4) return found;
+  let entries;
+  try {
+    entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  } catch (e) {
+    return found;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const match = entry.name.match(SESSION_FOLDER_RE);
+    const fullPath = path.join(dirPath, entry.name);
+    if (match) {
+      const [, sessionNumberStr, d, m, y] = match;
+      found.push({
+        folderPath: fullPath,
+        folderName: entry.name,
+        sessionNumber: parseInt(sessionNumberStr, 10),
+        date: `${y}-${m}-${d}`,
+      });
+      // une session ne contient pas de sous-session, on ne descend pas plus bas
+    } else {
+      found.push(...findSessionFolders(fullPath, depth + 1));
+    }
+  }
+  return found;
+}
+
+async function scanExistingSessions() {
+  const db = getDb();
+  const rootPath = db.data.config.rootPath;
+  if (!rootPath || !fs.existsSync(rootPath)) return { added: 0 };
+
+  const foundFolders = findSessionFolders(rootPath, 0);
+  const existingPaths = new Set(db.data.sessions.map((s) => s.folderPath));
+  let added = 0;
+
+  for (const f of foundFolders) {
+    if (existingPaths.has(f.folderPath)) continue;
+
+    const [yearStr, monthStr] = f.date.split('-');
+    const year = parseInt(yearStr, 10);
+    const monthIndex = parseInt(monthStr, 10) - 1;
+    const monthName = MONTHS_FR[monthIndex] || monthStr;
+
+    const hasMontage = fs.existsSync(path.join(f.folderPath, 'Montage Réseaux'));
+
+    const session = {
+      id: uuidv4(),
+      year,
+      month: monthIndex + 1,
+      monthName,
+      sessionNumber: f.sessionNumber,
+      date: f.date,
+      folderName: f.folderName,
+      folderPath: f.folderPath,
+      hasMontage,
+      nefCount: countFiles(path.join(f.folderPath, '.NEF'), ['.nef']),
+      jpegCount: countFiles(path.join(f.folderPath, '.JPEG'), ['.jpg', '.jpeg']),
+      retouchedCount: countFiles(path.join(f.folderPath, '.JPEG Retouché'), ['.jpg', '.jpeg']),
+      // Ces trois statuts ne peuvent pas être déduits du disque : on les laisse à toi de cocher.
+      statusPhone: false,
+      statusRetouched: false,
+      statusDone: false,
+      createdAt: new Date().toISOString(),
+    };
+    db.data.sessions.push(session);
+    existingPaths.add(f.folderPath);
+    added += 1;
+  }
+
+  if (added > 0) await db.write();
+  return { added };
+}
+
+ipcMain.handle('sessions:scanExisting', async () => {
+  return scanExistingSessions();
+});
+
 // ---------- IPC: sessions ----------
 
 ipcMain.handle('sessions:list', async () => {

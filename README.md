@@ -6,7 +6,7 @@ tableau de bord de progression, recherche.
 
 ## 1. Installer les outils de base (une seule fois)
 
-si tu as déjà Node.js, passe directement à l'étape 2.
+Tu as dit connaître un peu le dev, donc si tu as déjà Node.js, passe directement à l'étape 2.
 
 1. Installe **Node.js** (version 18 ou plus) : https://nodejs.org (prends la version "LTS")
 2. Vérifie l'installation dans un terminal / PowerShell :
@@ -48,6 +48,36 @@ npm run dist:win
 L'installeur Windows (`.exe`) apparaît dans le dossier `release/`. Sur Mac, utilise
 `npm run dist` pour un `.dmg`.
 
+## Ton archive existante
+
+Au moment où tu choisis ton dossier racine (au premier lancement), RawPilot **scanne
+automatiquement** tout ce dossier pour retrouver tes sessions déjà présentes sur le
+disque et les ajouter à son suivi. Rien n'est déplacé, copié ou modifié — l'app se
+contente de "lire" ce qui existe déjà.
+
+Pour qu'une session soit reconnue, son dossier doit s'appeler exactement comme le
+format que RawPilot utilise :
+
+```
+Session 49 - 01-08-2026
+```
+
+(le mot "Session", un espace, le numéro, un espace-tiret-espace, puis la date au format
+JJ-MM-AAAA). Si tes dossiers existants suivent déjà ce format — ce qui est le cas
+d'après ce que tu as décrit — ils seront tous retrouvés automatiquement, peu importe à
+quelle profondeur ils se trouvent dans l'arborescence.
+
+Pour chaque session retrouvée, RawPilot compte directement les fichiers déjà présents
+dans `.NEF`, `.JPEG` et `.JPEG Retouché`, et détecte si un dossier `Montage Réseaux`
+existe. En revanche, les cases "Retouché", "Importé sur téléphone" et "Terminé" ne
+peuvent pas être devinées depuis le disque : elles démarrent décochées, à toi de les
+cocher une fois pour remettre chaque session à son vrai statut.
+
+Si jamais un dossier de session apparaît sur le disque après coup (ajouté à la main, ou
+depuis un autre appareil), le bouton **"⟳ Scanner les dossiers existants"** en bas de la
+barre de recherche relance ce scan à tout moment, sans dupliquer les sessions déjà
+connues.
+
 ## Comment ça marche
 
 - **Création d'un shooting** : tu donnes une date + un numéro de session (proposé
@@ -82,4 +112,34 @@ l'intérieur du fichier NEF au moment de la prise de vue. Concrètement :
 - Si ton appareil n'embarque qu'une petite miniature, le JPEG obtenu sera plus petit /
   moins bon.
 - Ce n'est donc pas destiné à remplacer ta retouche dans Lightroom — c'est un JPEG rapide
-  pour trier, prévisualiser, ou envoyer un aperçu.
+  pour trier, prévisualiser, ou envoyer un aperçu, exactement comme demandé dans ton
+  cahier des charges initial (l'étape "Retouché" reste un import manuel depuis
+  Lightroom vers le dossier `.JPEG Retouché`).
+
+Si un jour tu veux un vrai développement RAW automatique (avec réglages d'exposition,
+balance des blancs, etc.), il faudrait intégrer un moteur comme RawTherapee ou dcraw en
+ligne de commande — possible en V2, mais plus lourd à mettre en place et nécessite de
+définir tes propres réglages de développement par défaut.
+
+## Prochaines idées (V2 / V3)
+
+- Miniatures des photos directement dans l'app
+- Détection automatique de carte SD branchée
+- Vraie conversion RAW (RawTherapee / LibRaw) avec un profil de développement
+- Vérification automatique des fichiers manquants
+- Export CSV de l'historique des sessions
+
+## Structure du projet
+
+```
+rawpilot/
+  electron/          → processus principal (création dossiers, import, base de données)
+    main.js
+    preload.js
+    db.js
+  src/                → interface React
+    App.tsx
+    components/
+    types.ts
+  package.json
+```

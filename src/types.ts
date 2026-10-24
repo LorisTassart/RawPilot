@@ -47,6 +47,7 @@ declare global {
         refreshCounts: (payload: { id: string }) => Promise<Session>;
         importNef: (payload: { id: string }) => Promise<ImportResult>;
         search: (payload: { query: string }) => Promise<Session[]>;
+        scanExisting: () => Promise<{ added: number }>;
         onImportProgress: (callback: (data: { id: string; done: number; total: number }) => void) => () => void;
       };
     };

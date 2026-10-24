@@ -40,8 +40,18 @@ export default function App() {
     const c = await window.rawpilot.config.selectRootFolder();
     if (c) {
       setConfig(c);
+      const { added } = await window.rawpilot.sessions.scanExisting();
       await loadSessions();
+      if (added > 0) {
+        setNotice(`${added} session(s) existante(s) retrouvée(s) et ajoutée(s) au suivi.`);
+      }
     }
+  }
+
+  async function handleRescan() {
+    const { added } = await window.rawpilot.sessions.scanExisting();
+    await loadSessions();
+    setNotice(added > 0 ? `${added} nouvelle(s) session(s) trouvée(s).` : 'Aucune nouvelle session trouvée.');
   }
 
   async function handleSearchChange(v: string) {
@@ -110,6 +120,7 @@ export default function App() {
         selectedId={selectedId}
         onSelect={setSelectedId}
         onNewSession={() => setShowModal(true)}
+        onRescan={handleRescan}
         search={search}
         onSearchChange={handleSearchChange}
       />
