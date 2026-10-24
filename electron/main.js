@@ -62,6 +62,45 @@ function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
+function normalizeName(name) {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // enlève les accents
+    .toLowerCase()
+    .replace(/^\./, '')
+    .trim();
+}
+
+// Cherche un sous-dossier existant qui "ressemble" à l'un des noms cibles
+// (insensible aux accents, à la casse, et au point préfixé "." ou non).
+function resolveSubfolder(basePath, targets) {
+  if (!fs.existsSync(basePath)) return null;
+  let entries;
+  try {
+    entries = fs.readdirSync(basePath, { withFileTypes: true });
+  } catch (e) {
+    return null;
+  }
+  const normalizedTargets = targets.map(normalizeName);
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (normalizedTargets.includes(normalizeName(entry.name))) {
+      return path.join(basePath, entry.name);
+    }
+  }
+  return null;
+}
+
+function countInSubfolder(sessionPath, targets, extensions) {
+  const resolved = resolveSubfolder(sessionPath, targets);
+  return resolved ? countFiles(resolved, extensions) : 0;
+}
+
+const NEF_NAMES = ['.NEF', 'NEF', 'RAW'];
+const JPEG_NAMES = ['.JPEG', 'JPEG', 'JPG'];
+const RETOUCHE_NAMES = ['.JPEG Retouché', 'JPEG Retouché', 'JPEG Retouche', 'Retouché', 'Retouche'];
+const MONTAGE_NAMES = ['Montage Réseaux', 'Montage Reseaux'];
+
 function sessionFolderName(sessionNumber, dateStr) {
   // dateStr = "YYYY-MM-DD" -> "Session 49 - 01-08-2026"
   const [y, m, d] = dateStr.split('-');
@@ -96,86 +135,119 @@ ipcMain.handle('config:selectRootFolder', async () => {
 
 // ---------- Scan des sessions déjà existantes sur le disque ----------
 
-const SESSION_FOLDER_RE = /^Session\s+(\d+)\s*-\s*(\d{2})-(\d{2})-(\d{4})$/i;
+// Plusieurs formats acceptés, du plus proche au plus permissif :
+// "Session 49 - 01-08-2026", "Session49_01.08.2026", "49 - 01-08-2026"
+const SESSION_FOLDER_PATTERNS = [
+  /^Session\s*(\d+)\s*-\s*(\d{2})[-_.](\d{2})[-_.](\d{4})$/i,
+  /^(\d+)\s*-\s*(\d{2})[-_.](\d{2})[-_.](\d{4})$/,
+];
 
-function findSessionFolders(dirPath, depth) {
-  const found = [];
-  if (depth > 4) return found;
+function matchSessionFolder(name) {
+  for (const re of SESSION_FOLDER_PATTERNS) {
+    const m = name.match(re);
+    if (m) {
+      const [, sessionNumberStr, d, mo, y] = m;
+      return { sessionNumber: parseInt(sessionNumberStr, 10), date: `${y}-${mo}-${d}` };
+    }
+  }
+  return null;
+}
+
+function looksLikeSessionFolder(fullPath) {
+  // Un dossier qui contient un sous-dossier ressemblant à des NEF est probablement une session,
+  // même si son nom ne suit pas le format attendu.
+  return resolveSubfolder(fullPath, NEF_NAMES) !== null || resolveSubfolder(fullPath, JPEG_NAMES) !== null;
+}
+
+function findSessionFolders(dirPath, depth, sessionFolders, candidateFolders) {
+  if (depth > 5) return;
   let entries;
   try {
     entries = fs.readdirSync(dirPath, { withFileTypes: true });
   } catch (e) {
-    return found;
+    return;
   }
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const match = entry.name.match(SESSION_FOLDER_RE);
     const fullPath = path.join(dirPath, entry.name);
+    const match = matchSessionFolder(entry.name);
     if (match) {
-      const [, sessionNumberStr, d, m, y] = match;
-      found.push({
-        folderPath: fullPath,
-        folderName: entry.name,
-        sessionNumber: parseInt(sessionNumberStr, 10),
-        date: `${y}-${m}-${d}`,
-      });
-      // une session ne contient pas de sous-session, on ne descend pas plus bas
+      sessionFolders.push({ folderPath: fullPath, folderName: entry.name, ...match });
+    } else if (looksLikeSessionFolder(fullPath)) {
+      candidateFolders.push({ folderPath: fullPath, folderName: entry.name });
     } else {
-      found.push(...findSessionFolders(fullPath, depth + 1));
+      findSessionFolders(fullPath, depth + 1, sessionFolders, candidateFolders);
     }
   }
-  return found;
 }
 
 async function scanExistingSessions() {
   const db = getDb();
   const rootPath = db.data.config.rootPath;
-  if (!rootPath || !fs.existsSync(rootPath)) return { added: 0 };
+  if (!rootPath || !fs.existsSync(rootPath)) return { added: 0, unmatched: [] };
 
-  const foundFolders = findSessionFolders(rootPath, 0);
+  const sessionFolders = [];
+  const candidateFolders = [];
+  findSessionFolders(rootPath, 0, sessionFolders, candidateFolders);
+
   const existingPaths = new Set(db.data.sessions.map((s) => s.folderPath));
   let added = 0;
 
-  for (const f of foundFolders) {
+  for (const f of sessionFolders) {
     if (existingPaths.has(f.folderPath)) continue;
-
-    const [yearStr, monthStr] = f.date.split('-');
-    const year = parseInt(yearStr, 10);
-    const monthIndex = parseInt(monthStr, 10) - 1;
-    const monthName = MONTHS_FR[monthIndex] || monthStr;
-
-    const hasMontage = fs.existsSync(path.join(f.folderPath, 'Montage Réseaux'));
-
-    const session = {
-      id: uuidv4(),
-      year,
-      month: monthIndex + 1,
-      monthName,
-      sessionNumber: f.sessionNumber,
-      date: f.date,
-      folderName: f.folderName,
-      folderPath: f.folderPath,
-      hasMontage,
-      nefCount: countFiles(path.join(f.folderPath, '.NEF'), ['.nef']),
-      jpegCount: countFiles(path.join(f.folderPath, '.JPEG'), ['.jpg', '.jpeg']),
-      retouchedCount: countFiles(path.join(f.folderPath, '.JPEG Retouché'), ['.jpg', '.jpeg']),
-      // Ces trois statuts ne peuvent pas être déduits du disque : on les laisse à toi de cocher.
-      statusPhone: false,
-      statusRetouched: false,
-      statusDone: false,
-      createdAt: new Date().toISOString(),
-    };
-    db.data.sessions.push(session);
+    addSessionFromFolder(db, f.folderPath, f.folderName, f.sessionNumber, f.date);
     existingPaths.add(f.folderPath);
     added += 1;
   }
 
   if (added > 0) await db.write();
-  return { added };
+
+  const unmatched = candidateFolders.filter((f) => !existingPaths.has(f.folderPath));
+  return { added, unmatched };
+}
+
+function addSessionFromFolder(db, folderPath, folderName, sessionNumber, date) {
+  const [yearStr, monthStr] = date.split('-');
+  const year = parseInt(yearStr, 10);
+  const monthIndex = parseInt(monthStr, 10) - 1;
+  const monthName = MONTHS_FR[monthIndex] || monthStr;
+  const hasMontage = resolveSubfolder(folderPath, MONTAGE_NAMES) !== null;
+
+  const session = {
+    id: uuidv4(),
+    year,
+    month: monthIndex + 1,
+    monthName,
+    sessionNumber,
+    date,
+    folderName,
+    folderPath,
+    hasMontage,
+    nefCount: countInSubfolder(folderPath, NEF_NAMES, ['.nef']),
+    jpegCount: countInSubfolder(folderPath, JPEG_NAMES, ['.jpg', '.jpeg']),
+    retouchedCount: countInSubfolder(folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']),
+    // Ces trois statuts ne peuvent pas être déduits du disque : on les laisse à toi de cocher.
+    statusPhone: false,
+    statusRetouched: false,
+    statusDone: false,
+    createdAt: new Date().toISOString(),
+  };
+  db.data.sessions.push(session);
+  return session;
 }
 
 ipcMain.handle('sessions:scanExisting', async () => {
   return scanExistingSessions();
+});
+
+ipcMain.handle('sessions:importManual', async (_evt, { folderPath, folderName, date, sessionNumber }) => {
+  const db = getDb();
+  if (db.data.sessions.some((s) => s.folderPath === folderPath)) {
+    throw new Error('Ce dossier est déjà importé.');
+  }
+  const session = addSessionFromFolder(db, folderPath, folderName, sessionNumber, date);
+  await db.write();
+  return { ...session, status: computeStatus(session) };
 });
 
 // ---------- IPC: sessions ----------
@@ -259,7 +331,15 @@ ipcMain.handle('sessions:openFolder', async (_evt, { id, sub }) => {
   const db = getDb();
   const session = db.data.sessions.find((s) => s.id === id);
   if (!session) throw new Error('Session introuvable');
-  const target = sub ? path.join(session.folderPath, sub) : session.folderPath;
+  let target = session.folderPath;
+  if (sub) {
+    const variantsByLabel = {
+      '.JPEG Retouché': RETOUCHE_NAMES,
+      'Montage Réseaux': MONTAGE_NAMES,
+    };
+    const variants = variantsByLabel[sub] || [sub];
+    target = resolveSubfolder(session.folderPath, variants) || path.join(session.folderPath, sub);
+  }
   const result = await shell.openPath(target);
   if (result) throw new Error(result);
   return true;
@@ -269,9 +349,9 @@ ipcMain.handle('sessions:refreshCounts', async (_evt, { id }) => {
   const db = getDb();
   const session = db.data.sessions.find((s) => s.id === id);
   if (!session) throw new Error('Session introuvable');
-  session.nefCount = countFiles(path.join(session.folderPath, '.NEF'), ['.nef']);
-  session.jpegCount = countFiles(path.join(session.folderPath, '.JPEG'), ['.jpg', '.jpeg']);
-  session.retouchedCount = countFiles(path.join(session.folderPath, '.JPEG Retouché'), ['.jpg', '.jpeg']);
+  session.nefCount = countInSubfolder(session.folderPath, NEF_NAMES, ['.nef']);
+  session.jpegCount = countInSubfolder(session.folderPath, JPEG_NAMES, ['.jpg', '.jpeg']);
+  session.retouchedCount = countInSubfolder(session.folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']);
   await db.write();
   return { ...session, status: computeStatus(session) };
 });
@@ -295,8 +375,8 @@ ipcMain.handle('sessions:importNef', async (_evt, { id }) => {
   });
   if (result.canceled || result.filePaths.length === 0) return { imported: 0, converted: 0 };
 
-  const nefDir = path.join(session.folderPath, '.NEF');
-  const jpegDir = path.join(session.folderPath, '.JPEG');
+  const nefDir = resolveSubfolder(session.folderPath, NEF_NAMES) || path.join(session.folderPath, '.NEF');
+  const jpegDir = resolveSubfolder(session.folderPath, JPEG_NAMES) || path.join(session.folderPath, '.JPEG');
   if (!fs.existsSync(nefDir)) fs.mkdirSync(nefDir, { recursive: true });
   if (!fs.existsSync(jpegDir)) fs.mkdirSync(jpegDir, { recursive: true });
 

@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('rawpilot', {
     importNef: (payload) => ipcRenderer.invoke('sessions:importNef', payload),
     search: (payload) => ipcRenderer.invoke('sessions:search', payload),
     scanExisting: () => ipcRenderer.invoke('sessions:scanExisting'),
+    importManual: (payload) => ipcRenderer.invoke('sessions:importManual', payload),
     onImportProgress: (callback) => {
       const listener = (_evt, data) => callback(data);
       ipcRenderer.on('sessions:importProgress', listener);

@@ -9,11 +9,23 @@ interface Props {
   onSelect: (id: string) => void;
   onNewSession: () => void;
   onRescan: () => void;
+  unmatchedCount: number;
+  onShowUnmatched: () => void;
   search: string;
   onSearchChange: (v: string) => void;
 }
 
-export default function Sidebar({ sessions, selectedId, onSelect, onNewSession, onRescan, search, onSearchChange }: Props) {
+export default function Sidebar({
+  sessions,
+  selectedId,
+  onSelect,
+  onNewSession,
+  onRescan,
+  unmatchedCount,
+  onShowUnmatched,
+  search,
+  onSearchChange,
+}: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const tree = useMemo(() => {
@@ -66,14 +78,19 @@ export default function Sidebar({ sessions, selectedId, onSelect, onNewSession, 
       </div>
       <SearchBar value={search} onChange={onSearchChange} />
 
-      <div className="px-3 pb-2 -mt-1">
+      <div className="px-3 pb-2 -mt-1 flex flex-col gap-1">
         <button
           onClick={onRescan}
           title="Retrouver des sessions ajoutées manuellement sur le disque"
-          className="text-[11px] text-ink-faint hover:text-ink-dim"
+          className="text-[11px] text-ink-faint hover:text-ink-dim text-left"
         >
           ⟳ Scanner les dossiers existants
         </button>
+        {unmatchedCount > 0 && (
+          <button onClick={onShowUnmatched} className="text-[11px] text-status-progress hover:brightness-110 text-left">
+            🟠 {unmatchedCount} dossier(s) non reconnu(s) — à valider
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 pb-4">

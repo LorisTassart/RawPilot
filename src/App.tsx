@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Config, Session } from './types';
+import { Config, Session, UnmatchedFolder } from './types';
 import WelcomeSetup from './components/WelcomeSetup';
 import Sidebar from './components/Sidebar';
 import SessionDetail from './components/SessionDetail';
 import NewSessionModal from './components/NewSessionModal';
+import UnmatchedFoldersModal from './components/UnmatchedFoldersModal';
 
 export default function App() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -13,6 +14,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unmatched, setUnmatched] = useState<UnmatchedFolder[]>([]);
+  const [showUnmatched, setShowUnmatched] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -40,18 +43,29 @@ export default function App() {
     const c = await window.rawpilot.config.selectRootFolder();
     if (c) {
       setConfig(c);
-      const { added } = await window.rawpilot.sessions.scanExisting();
+      const { added, unmatched: um } = await window.rawpilot.sessions.scanExisting();
       await loadSessions();
+      setUnmatched(um);
       if (added > 0) {
         setNotice(`${added} session(s) existante(s) retrouvée(s) et ajoutée(s) au suivi.`);
+      }
+      if (um.length > 0) {
+        setShowUnmatched(true);
       }
     }
   }
 
   async function handleRescan() {
-    const { added } = await window.rawpilot.sessions.scanExisting();
+    const { added, unmatched: um } = await window.rawpilot.sessions.scanExisting();
     await loadSessions();
+    setUnmatched(um);
     setNotice(added > 0 ? `${added} nouvelle(s) session(s) trouvée(s).` : 'Aucune nouvelle session trouvée.');
+    if (um.length > 0) setShowUnmatched(true);
+  }
+
+  async function handleFolderImported(folderPath: string) {
+    setUnmatched((prev) => prev.filter((f) => f.folderPath !== folderPath));
+    await loadSessions();
   }
 
   async function handleSearchChange(v: string) {
@@ -121,6 +135,8 @@ export default function App() {
         onSelect={setSelectedId}
         onNewSession={() => setShowModal(true)}
         onRescan={handleRescan}
+        unmatchedCount={unmatched.length}
+        onShowUnmatched={() => setShowUnmatched(true)}
         search={search}
         onSearchChange={handleSearchChange}
       />
@@ -156,6 +172,13 @@ export default function App() {
       </main>
 
       {showModal && <NewSessionModal onClose={() => setShowModal(false)} onCreate={handleCreateSession} />}
+      {showUnmatched && (
+        <UnmatchedFoldersModal
+          folders={unmatched}
+          onClose={() => setShowUnmatched(false)}
+          onImported={handleFolderImported}
+        />
+      )}
     </div>
   );
 }

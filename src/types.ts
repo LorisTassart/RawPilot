@@ -31,6 +31,12 @@ export interface ImportResult {
   session: Session;
 }
 
+export interface UnmatchedFolder {
+  folderPath: string;
+  folderName: string;
+}
+
+
 declare global {
   interface Window {
     rawpilot: {
@@ -47,7 +53,13 @@ declare global {
         refreshCounts: (payload: { id: string }) => Promise<Session>;
         importNef: (payload: { id: string }) => Promise<ImportResult>;
         search: (payload: { query: string }) => Promise<Session[]>;
-        scanExisting: () => Promise<{ added: number }>;
+        scanExisting: () => Promise<{ added: number; unmatched: UnmatchedFolder[] }>;
+        importManual: (payload: {
+          folderPath: string;
+          folderName: string;
+          date: string;
+          sessionNumber: number;
+        }) => Promise<Session>;
         onImportProgress: (callback: (data: { id: string; done: number; total: number }) => void) => () => void;
       };
     };
