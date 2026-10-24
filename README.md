@@ -15,7 +15,25 @@ Tu as dit connaître un peu le dev, donc si tu as déjà Node.js, passe directem
    npm -v
    ```
 
-## 2. Installer le projet
+## 2. Installer et lancer (Windows) — la méthode simple
+
+Deux fichiers sont fournis à la racine du dossier `rawpilot` pour éviter de taper des
+commandes :
+
+- **`1 - Installer et lancer RawPilot.bat`** : à double-cliquer **une seule fois**, la
+  toute première fois. Il installe tout ce qu'il faut (2-3 minutes), puis lance
+  directement l'application.
+- **`2 - Lancer RawPilot.bat`** : à double-cliquer à chaque fois ensuite, pour ouvrir
+  RawPilot sans tout réinstaller.
+
+Si Node.js n'est pas encore installé, le premier fichier te l'indique et te redirige vers
+https://nodejs.org (prends la version "LTS").
+
+Une fenêtre noire (le terminal) reste ouverte pendant que RawPilot tourne — c'est normal,
+ne la ferme pas tant que tu utilises l'application. Si quelque chose ne fonctionne pas,
+cette fenêtre affiche le message d'erreur : copie-le et montre-le à Claude.
+
+## 3. Installer et lancer (Mac, ou en ligne de commande)
 
 Décompresse le dossier `rawpilot`, ouvre un terminal dedans, puis :
 
@@ -26,7 +44,7 @@ npm install
 Ça télécharge toutes les dépendances (React, Electron, le moteur de lecture des NEF, etc.).
 Ça peut prendre 2-3 minutes la première fois.
 
-## 3. Lancer l'application en mode développement
+## 4. Lancer l'application en mode développement (Mac / terminal)
 
 ```bash
 npm run dev
@@ -36,7 +54,7 @@ Une fenêtre RawPilot s'ouvre. Au premier lancement, elle te demande de choisir 
 **dossier racine** de tes archives (celui qui contient déjà tes dossiers par année, ou
 un dossier vide si tu démarres de zéro).
 
-## 4. Construire un vrai .exe installable
+## 5. Construire un vrai .exe installable
 
 Quand tu es content du résultat et que tu veux une version installable, sans passer par
 le terminal à chaque fois :
