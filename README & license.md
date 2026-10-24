@@ -38,3 +38,5 @@ portable version usage:
 
 first usage use .bat file number 1 to properly install everything in the file.
 second and more usage just launch RawPilot with .bat called 2
+
+When the version have it a .exe called RawPilot Portable [version] you can directly use it has the portable way off the app
