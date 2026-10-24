@@ -3,6 +3,7 @@ import { Session, ChecklistStep, Config } from '../types';
 import StatusDot from './StatusDot';
 import EditSessionModal from './EditSessionModal';
 import DocumentList from './DocumentList';
+import EventPoster from './EventPoster';
 
 interface Props {
   session: Session;
@@ -121,6 +122,8 @@ export default function SessionDetail({
             </button>
           </div>
         </div>
+
+        {session.category === 'event' && <EventPoster sessionId={session.id} />}
 
         {/* Compteurs */}
         <div className={`grid gap-3 my-6 ${rawEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>

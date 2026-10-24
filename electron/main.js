@@ -657,6 +657,68 @@ ipcMain.handle('sessions:importPhotos', async (_evt, { id }) => {
 
 // ---------- IPC: search ----------
 
+// ---------- IPC: Affiche d'événement ----------
+
+function findPosterFile(sessionPath) {
+  if (!fs.existsSync(sessionPath)) return null;
+  const match = fs.readdirSync(sessionPath).find((f) => /^affiche\.(png|jpe?g|webp)$/i.test(f));
+  return match ? path.join(sessionPath, match) : null;
+}
+
+function posterMimeType(fileName) {
+  const ext = path.extname(fileName).toLowerCase();
+  if (ext === '.png') return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  return 'image/jpeg';
+}
+
+function posterToDataUrl(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  return `data:${posterMimeType(filePath)};base64,${buffer.toString('base64')}`;
+}
+
+ipcMain.handle('sessions:getPoster', async (_evt, { id }) => {
+  const db = getDb();
+  const session = db.data.sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session introuvable');
+  const filePath = findPosterFile(session.folderPath);
+  return filePath ? posterToDataUrl(filePath) : null;
+});
+
+ipcMain.handle('sessions:setPoster', async (_evt, { id }) => {
+  const db = getDb();
+  const session = db.data.sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session introuvable');
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+    title: "Choisis l'affiche de l'événement",
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+
+  const old = findPosterFile(session.folderPath);
+  if (old) fs.unlinkSync(old);
+
+  const src = result.filePaths[0];
+  const ext = path.extname(src).toLowerCase();
+  const dest = path.join(session.folderPath, `affiche${ext}`);
+  fs.copyFileSync(src, dest);
+
+  return posterToDataUrl(dest);
+});
+
+ipcMain.handle('sessions:removePoster', async (_evt, { id }) => {
+  const db = getDb();
+  const session = db.data.sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session introuvable');
+  const filePath = findPosterFile(session.folderPath);
+  if (filePath) fs.unlinkSync(filePath);
+  return true;
+});
+
+// ---------- IPC: search ----------
+
 ipcMain.handle('sessions:search', async (_evt, { query }) => {
   const db = getDb();
   const q = (query || '').trim().toLowerCase();

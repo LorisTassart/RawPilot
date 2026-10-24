@@ -64,8 +64,34 @@ le terminal à chaque fois :
 npm run dist:win
 ```
 
-L'installeur Windows (`.exe`) apparaît dans le dossier `release/`. Sur Mac, utilise
-`npm run dist` pour un `.dmg`.
+Cette commande produit **deux fichiers** dans le dossier `release/` :
+
+- Un installeur classique (`.exe`) — s'installe dans le dossier utilisateur, **aucun
+  droit administrateur requis**.
+- Une version **portable** (`.exe` autonome, sans installation) — pense à cocher/vérifier
+  qu'electron-builder l'a bien généré si tu veux l'utiliser sur une clé USB (voir
+  section suivante).
+
+Sur Mac, utilise `npm run dist` pour un `.dmg`.
+
+## 🔌 Version portable (clé USB)
+
+Le fichier `.exe` portable généré ci-dessus peut être copié tel quel sur une clé USB et
+lancé sur n'importe quel PC Windows, **sans installation ni droit administrateur**.
+
+Contrairement à l'installeur classique (qui stocke tes sessions suivies, tes réglages et
+le journal de diagnostic dans le dossier `AppData` du PC), la version portable range
+automatiquement toutes ces données dans un dossier `RawPilotData` créé **juste à côté
+du .exe** — donc directement sur la clé. Tout voyage avec toi d'un PC à l'autre : tes
+sessions suivies, tes réglages (dont le format RAW choisi et les étapes de suivi
+personnalisées).
+
+Une seule chose ne voyage pas automatiquement : **tes photos elles-mêmes**, si ton
+dossier racine (`rootPath`) est sur le disque interne d'un PC plutôt que sur la clé.
+Si tu changes de PC et que ce dossier n'est plus au même endroit, RawPilot te
+proposera de le retrouver ou de le relocaliser (Paramètres → Vérifier les dossiers
+manquants / Changer le dossier racine) — comme pour un dossier simplement déplacé ou
+renommé.
 
 ## Format RAW — pour qui n'utilise pas de Nikon (ou pas de RAW du tout)
 
@@ -168,6 +194,14 @@ Dans les deux cas :
   pour un .docx, Bloc-notes pour un .txt, etc.).
 - **📁** ouvre l'Explorateur de fichiers directement sur ce document.
 - **✎** renomme le document, **🗑** le supprime (uniquement la copie dans RawPilot).
+
+## 🖼️ Affiche d'événement
+
+Pour une session catégorisée "📅 Événement", une petite section "Affiche de
+l'événement" apparaît en haut du détail de la session, avec un bouton "+ Ajouter une
+affiche". L'image choisie (png/jpg/webp) est copiée dans le dossier de la session sous
+le nom `affiche.<extension>` — tu peux la changer ou la retirer à tout moment. Rien
+n'apparaît pour les sessions "Client" ou sans catégorie.
 
 ## Comment ça marche
 

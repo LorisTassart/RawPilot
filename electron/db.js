@@ -72,10 +72,22 @@ function migrate(data) {
   return data;
 }
 
+// En mode "portable" (build electron-builder target "portable"), Electron/Windows
+// définit automatiquement cette variable d'environnement au chemin du dossier où se
+// trouve le .exe — utile pour que les données de RawPilot voyagent avec lui sur une
+// clé USB, plutôt que de rester coincées dans AppData sur le PC où on l'a lancé.
+function getDataDir() {
+  const portableDir = process.env.PORTABLE_EXECUTABLE_DIR;
+  if (portableDir) {
+    return path.join(portableDir, 'RawPilotData');
+  }
+  return app.getPath('userData');
+}
+
 async function initDb() {
-  const userDataPath = app.getPath('userData');
-  if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
-  filePath = path.join(userDataPath, 'rawpilot-db.json');
+  const dataDir = getDataDir();
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  filePath = path.join(dataDir, 'rawpilot-db.json');
 
   if (fs.existsSync(filePath)) {
     try {

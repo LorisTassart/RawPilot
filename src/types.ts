@@ -115,6 +115,9 @@ declare global {
         checkMissing: () => Promise<Session[]>;
         relocate: (payload: { id: string }) => Promise<Session | null>;
         onImportProgress: (callback: (data: { id: string; done: number; total: number }) => void) => () => void;
+        getPoster: (payload: { id: string }) => Promise<string | null>;
+        setPoster: (payload: { id: string }) => Promise<string | null>;
+        removePoster: (payload: { id: string }) => Promise<boolean>;
       };
       app: {
         isDev: () => Promise<boolean>;

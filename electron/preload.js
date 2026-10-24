@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('rawpilot', {
       ipcRenderer.on('sessions:importProgress', listener);
       return () => ipcRenderer.removeListener('sessions:importProgress', listener);
     },
+    getPoster: (payload) => ipcRenderer.invoke('sessions:getPoster', payload),
+    setPoster: (payload) => ipcRenderer.invoke('sessions:setPoster', payload),
+    removePoster: (payload) => ipcRenderer.invoke('sessions:removePoster', payload),
   },
   app: {
     isDev: () => ipcRenderer.invoke('app:isDev'),
