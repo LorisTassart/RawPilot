@@ -673,3 +673,83 @@ ipcMain.handle('sessions:search', async (_evt, { query }) => {
     })
     .map(withStatus);
 });
+
+// ---------- IPC: Documents (modèles généraux + documents par session) ----------
+
+function resolveDocsFolder(scope, sessionId, createIfMissing) {
+  const db = getDb();
+  let folder;
+  if (scope === 'global') {
+    const rootPath = db.data.config.rootPath;
+    if (!rootPath) throw new Error('Aucun dossier racine configuré.');
+    folder = path.join(rootPath, '_Documents RawPilot');
+  } else {
+    const session = db.data.sessions.find((s) => s.id === sessionId);
+    if (!session) throw new Error('Session introuvable');
+    folder = path.join(session.folderPath, 'Documents');
+  }
+  if (createIfMissing && !fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+  return folder;
+}
+
+function listDocs(folder) {
+  if (!fs.existsSync(folder)) return [];
+  return fs
+    .readdirSync(folder)
+    .filter((f) => !f.startsWith('.'))
+    .map((f) => {
+      const full = path.join(folder, f);
+      const stat = fs.statSync(full);
+      return { fileName: f, size: stat.size, modifiedAt: stat.mtime.toISOString() };
+    })
+    .sort((a, b) => a.fileName.localeCompare(b.fileName));
+}
+
+ipcMain.handle('documents:list', async (_evt, { scope, sessionId }) => {
+  const folder = resolveDocsFolder(scope, sessionId, false);
+  return listDocs(folder);
+});
+
+ipcMain.handle('documents:add', async (_evt, { scope, sessionId }) => {
+  const folder = resolveDocsFolder(scope, sessionId, true);
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile', 'multiSelections'],
+    title: 'Choisis le(s) document(s) à ajouter',
+  });
+  if (result.canceled || result.filePaths.length === 0) return listDocs(folder);
+  for (const src of result.filePaths) {
+    const dest = path.join(folder, path.basename(src));
+    fs.copyFileSync(src, dest);
+  }
+  return listDocs(folder);
+});
+
+ipcMain.handle('documents:open', async (_evt, { scope, sessionId, fileName }) => {
+  const folder = resolveDocsFolder(scope, sessionId, false);
+  const full = path.join(folder, fileName);
+  const res = await shell.openPath(full);
+  if (res) throw new Error(res);
+  return true;
+});
+
+ipcMain.handle('documents:reveal', async (_evt, { scope, sessionId, fileName }) => {
+  const folder = resolveDocsFolder(scope, sessionId, false);
+  shell.showItemInFolder(path.join(folder, fileName));
+  return true;
+});
+
+ipcMain.handle('documents:remove', async (_evt, { scope, sessionId, fileName }) => {
+  const folder = resolveDocsFolder(scope, sessionId, false);
+  const full = path.join(folder, fileName);
+  if (fs.existsSync(full)) fs.unlinkSync(full);
+  return listDocs(folder);
+});
+
+ipcMain.handle('documents:rename', async (_evt, { scope, sessionId, fileName, newName }) => {
+  const folder = resolveDocsFolder(scope, sessionId, false);
+  const oldPath = path.join(folder, fileName);
+  const newPath = path.join(folder, newName);
+  if (fs.existsSync(newPath)) throw new Error('Un document avec ce nom existe déjà.');
+  fs.renameSync(oldPath, newPath);
+  return listDocs(folder);
+});

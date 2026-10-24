@@ -17,6 +17,8 @@ interface Props {
   onSearchChange: (v: string) => void;
   showDashboard: boolean;
   onToggleDashboard: () => void;
+  showDocuments: boolean;
+  onToggleDocuments: () => void;
   filterStatus: 'all' | 'todo' | 'progress' | 'done';
   onFilterStatusChange: (v: 'all' | 'todo' | 'progress' | 'done') => void;
   filterCategory: 'all' | SessionCategory;
@@ -39,6 +41,8 @@ export default function Sidebar({
   onSearchChange,
   showDashboard,
   onToggleDashboard,
+  showDocuments,
+  onToggleDocuments,
   filterStatus,
   onFilterStatusChange,
   filterCategory,
@@ -103,6 +107,15 @@ export default function Sidebar({
             }`}
           >
             📊
+          </button>
+          <button
+            onClick={onToggleDocuments}
+            title="Documents"
+            className={`text-sm w-7 h-7 flex items-center justify-center rounded-lg hover:bg-base-surface2 ${
+              showDocuments ? 'text-accent bg-base-surface2' : 'text-ink-faint hover:text-ink'
+            }`}
+          >
+            📄
           </button>
           <button
             onClick={onOpenSettings}
@@ -197,7 +210,7 @@ export default function Sidebar({
                         key={s.id}
                         onClick={() => onSelect(s.id)}
                         className={`w-full flex items-center gap-2 pl-7 pr-2 py-1.5 rounded-lg text-sm text-left transition-colors ${
-                          !showDashboard && selectedId === s.id
+                          !showDashboard && !showDocuments && selectedId === s.id
                             ? 'bg-base-surface2 text-ink'
                             : 'text-ink-dim hover:bg-base-surface2/60'
                         }`}

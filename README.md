@@ -151,6 +151,24 @@ ne veux plus la suivre.
 - **Filtres** : sous la barre de recherche, filtre par statut, par type (Client /
   Événement) et par année.
 
+## 📄 Documents
+
+Nouvel onglet accessible via l'icône 📄 en haut de la barre latérale, pour tes modèles
+vierges (contrats, décharges de droit à l'image, etc.) — rangés dans un dossier
+"_Documents RawPilot" à la racine de tes archives.
+
+Chaque session a aussi sa propre section "📄 Documents de cette session" (en bas du
+détail de la session), pour les documents remplis propres à ce shooting précis (contrat
+signé, décharge complétée...) — rangés dans un sous-dossier "Documents" de la session.
+
+Dans les deux cas :
+- **+ Ajouter un document** copie le(s) fichier(s) choisi(s) dans le dossier RawPilot
+  concerné (l'original sur ton disque n'est pas déplacé).
+- **Ouvrir** lance le fichier avec l'application associée par défaut sur ton PC (Word
+  pour un .docx, Bloc-notes pour un .txt, etc.).
+- **📁** ouvre l'Explorateur de fichiers directement sur ce document.
+- **✎** renomme le document, **🗑** le supprime (uniquement la copie dans RawPilot).
+
 ## Comment ça marche
 
 - **Création d'un shooting** : tu donnes une date + un numéro de session (proposé

@@ -1,6 +1,6 @@
 {
   "name": "rawpilot",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "RawPilot - organisation automatique de tes shootings photo",
   "main": "electron/main.js",
   "private": true,

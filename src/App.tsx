@@ -8,6 +8,7 @@ import UnmatchedFoldersModal from './components/UnmatchedFoldersModal';
 import SettingsModal from './components/SettingsModal';
 import MissingFoldersModal from './components/MissingFoldersModal';
 import Dashboard from './components/Dashboard';
+import DocumentsPanel from './components/DocumentsPanel';
 
 export default function App() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -23,6 +24,7 @@ export default function App() {
   const [missing, setMissing] = useState<Session[]>([]);
   const [showMissing, setShowMissing] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [showDocuments, setShowDocuments] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'todo' | 'progress' | 'done'>('all');
   const [filterCategory, setFilterCategory] = useState<'all' | SessionCategory>('all');
   const [filterYear, setFilterYear] = useState<'all' | number>('all');
@@ -139,6 +141,8 @@ export default function App() {
     const session = await window.rawpilot.sessions.create(payload);
     const list = await loadSessions();
     setSelectedId(session.id);
+    setShowDashboard(false);
+    setShowDocuments(false);
     setShowModal(false);
     void list;
   }
@@ -206,6 +210,7 @@ export default function App() {
         onSelect={(id) => {
           setSelectedId(id);
           setShowDashboard(false);
+          setShowDocuments(false);
         }}
         onNewSession={() => setShowModal(true)}
         onRescan={handleRescan}
@@ -217,6 +222,13 @@ export default function App() {
         showDashboard={showDashboard}
         onToggleDashboard={() => {
           setShowDashboard((v) => !v);
+          setShowDocuments(false);
+          setSelectedId(null);
+        }}
+        showDocuments={showDocuments}
+        onToggleDocuments={() => {
+          setShowDocuments((v) => !v);
+          setShowDashboard(false);
           setSelectedId(null);
         }}
         filterStatus={filterStatus}
@@ -237,6 +249,8 @@ export default function App() {
 
         {showDashboard ? (
           <Dashboard sessions={sessions} />
+        ) : showDocuments ? (
+          <DocumentsPanel />
         ) : selected ? (
           <SessionDetail
             session={selected}

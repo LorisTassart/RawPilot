@@ -36,4 +36,12 @@ contextBridge.exposeInMainWorld('rawpilot', {
     importProfile: () => ipcRenderer.invoke('app:importProfile'),
     resetAll: () => ipcRenderer.invoke('app:resetAll'),
   },
+  documents: {
+    list: (payload) => ipcRenderer.invoke('documents:list', payload),
+    add: (payload) => ipcRenderer.invoke('documents:add', payload),
+    open: (payload) => ipcRenderer.invoke('documents:open', payload),
+    reveal: (payload) => ipcRenderer.invoke('documents:reveal', payload),
+    remove: (payload) => ipcRenderer.invoke('documents:remove', payload),
+    rename: (payload) => ipcRenderer.invoke('documents:rename', payload),
+  },
 });

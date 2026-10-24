@@ -51,6 +51,12 @@ export interface ImportResult {
   session: Session;
 }
 
+export interface DocumentFile {
+  fileName: string;
+  size: number;
+  modifiedAt: string;
+}
+
 export interface UnmatchedFolder {
   folderPath: string;
   folderName: string;
@@ -115,6 +121,19 @@ declare global {
         exportProfile: () => Promise<string | null>;
         importProfile: () => Promise<Config | null>;
         resetAll: () => Promise<Config>;
+      };
+      documents: {
+        list: (payload: { scope: 'global' | 'session'; sessionId?: string }) => Promise<DocumentFile[]>;
+        add: (payload: { scope: 'global' | 'session'; sessionId?: string }) => Promise<DocumentFile[]>;
+        open: (payload: { scope: 'global' | 'session'; sessionId?: string; fileName: string }) => Promise<boolean>;
+        reveal: (payload: { scope: 'global' | 'session'; sessionId?: string; fileName: string }) => Promise<boolean>;
+        remove: (payload: { scope: 'global' | 'session'; sessionId?: string; fileName: string }) => Promise<DocumentFile[]>;
+        rename: (payload: {
+          scope: 'global' | 'session';
+          sessionId?: string;
+          fileName: string;
+          newName: string;
+        }) => Promise<DocumentFile[]>;
       };
     };
   }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Session, ChecklistStep, Config } from '../types';
 import StatusDot from './StatusDot';
 import EditSessionModal from './EditSessionModal';
+import DocumentList from './DocumentList';
 
 interface Props {
   session: Session;
@@ -227,6 +228,15 @@ export default function SessionDetail({
             Ouvrir "Montage Réseaux"
           </button>
         )}
+
+        <div className="mt-8 bg-base-surface border border-base-border rounded-xl p-4">
+          <DocumentList
+            scope="session"
+            sessionId={session.id}
+            title="📄 Documents de cette session"
+            description="Contrat rempli, décharge de droit à l'image signée, etc. propres à ce shooting."
+          />
+        </div>
 
         <div className="mt-8 pt-4 border-t border-base-border">
           <button onClick={handleRemove} className="text-xs text-ink-faint hover:text-status-todo transition-colors">
