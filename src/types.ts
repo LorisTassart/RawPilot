@@ -1,5 +1,10 @@
 export type SessionStatus = 'todo' | 'progress' | 'done';
 
+export interface ChecklistStep {
+  id: string;
+  label: string;
+}
+
 export interface Session {
   id: string;
   year: number;
@@ -13,16 +18,23 @@ export interface Session {
   nefCount: number;
   jpegCount: number;
   retouchedCount: number;
-  statusGoogleDrive: boolean;
-  statusPhone: boolean;
-  statusRetouched: boolean;
-  statusDone: boolean;
+  checklist: Record<string, boolean>;
   createdAt: string;
   status: SessionStatus;
 }
 
 export interface Config {
   rootPath: string | null;
+  rawEnabled: boolean;
+  rawFormats: string[];
+  autoConvert: boolean;
+  checklistSteps: ChecklistStep[];
+  isDev: boolean;
+}
+
+export interface RawFormatOption {
+  id: string;
+  label: string;
 }
 
 export interface ImportResult {
@@ -37,7 +49,6 @@ export interface UnmatchedFolder {
   folderName: string;
 }
 
-
 declare global {
   interface Window {
     rawpilot: {
@@ -45,12 +56,19 @@ declare global {
         get: () => Promise<Config>;
         selectRootFolder: () => Promise<Config | null>;
         resetToWelcome: () => Promise<Config>;
+        rawCatalog: () => Promise<RawFormatOption[]>;
+        updateRawSettings: (payload: {
+          rawEnabled: boolean;
+          rawFormats: string[];
+          autoConvert: boolean;
+        }) => Promise<Config>;
+        updateChecklistSteps: (payload: { steps: ChecklistStep[] }) => Promise<Config>;
       };
       sessions: {
         list: () => Promise<Session[]>;
         nextNumber: () => Promise<number>;
         create: (payload: { date: string; sessionNumber: number; hasMontage: boolean }) => Promise<Session>;
-        updateFlag: (payload: { id: string; field: string; value: boolean }) => Promise<Session>;
+        updateChecklist: (payload: { id: string; stepId: string; value: boolean }) => Promise<Session>;
         updateInfo: (payload: {
           id: string;
           date: string;
@@ -59,7 +77,7 @@ declare global {
         }) => Promise<Session>;
         openFolder: (payload: { id: string; sub?: string }) => Promise<boolean>;
         refreshCounts: (payload: { id: string }) => Promise<Session>;
-        importNef: (payload: { id: string }) => Promise<ImportResult>;
+        importPhotos: (payload: { id: string }) => Promise<ImportResult>;
         search: (payload: { query: string }) => Promise<Session[]>;
         scanExisting: () => Promise<{ added: number; unmatched: UnmatchedFolder[] }>;
         importManual: (payload: {
@@ -72,6 +90,12 @@ declare global {
         checkMissing: () => Promise<Session[]>;
         relocate: (payload: { id: string }) => Promise<Session | null>;
         onImportProgress: (callback: (data: { id: string; done: number; total: number }) => void) => () => void;
+      };
+      app: {
+        isDev: () => Promise<boolean>;
+        exportProfile: () => Promise<string | null>;
+        importProfile: () => Promise<Config | null>;
+        resetAll: () => Promise<Config>;
       };
     };
   }

@@ -2,7 +2,15 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { initDb, getDb, MONTHS_FR } = require('./db');
+const {
+  initDb,
+  getDb,
+  resetAll,
+  replaceAll,
+  MONTHS_FR,
+  RAW_CATALOG,
+  DEFAULT_CHECKLIST_STEPS,
+} = require('./db');
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -59,10 +67,6 @@ app.on('window-all-closed', async () => {
 
 // ---------- Helpers ----------
 
-function pad2(n) {
-  return String(n).padStart(2, '0');
-}
-
 function normalizeName(name) {
   return name
     .normalize('NFD')
@@ -92,15 +96,26 @@ function resolveSubfolder(basePath, targets) {
   return null;
 }
 
+function countFiles(dirPath, extensions) {
+  if (!fs.existsSync(dirPath)) return 0;
+  return fs.readdirSync(dirPath).filter((f) => extensions.includes(path.extname(f).toLowerCase())).length;
+}
+
 function countInSubfolder(sessionPath, targets, extensions) {
   const resolved = resolveSubfolder(sessionPath, targets);
   return resolved ? countFiles(resolved, extensions) : 0;
 }
 
-const NEF_NAMES = ['.NEF', 'NEF', 'RAW'];
+// Noms de dossier acceptés pour repérer le dossier RAW, quelle que soit la marque,
+// et quel que soit le nom historique utilisé ("NEF" du tout premier prototype inclus).
+const RAW_NAMES = ['RAW', ...RAW_CATALOG.map((f) => f.id)];
+// Extensions comptées comme "RAW" peu importe le réglage actuel de l'utilisateur,
+// pour que les compteurs restent corrects même si la config change plus tard.
+const RAW_COUNT_EXTENSIONS = RAW_CATALOG.map((f) => `.${f.id}`);
 const JPEG_NAMES = ['.JPEG', 'JPEG', 'JPG'];
 const RETOUCHE_NAMES = ['.JPEG Retouché', 'JPEG Retouché', 'JPEG Retouche', 'Retouché', 'Retouche'];
 const MONTAGE_NAMES = ['Montage Réseaux', 'Montage Reseaux'];
+const GENERIC_PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.heic'];
 
 function sessionFolderName(sessionNumber, dateStr) {
   // dateStr = "YYYY-MM-DD" -> "Session 49 - 01-08-2026"
@@ -109,19 +124,34 @@ function sessionFolderName(sessionNumber, dateStr) {
 }
 
 function computeStatus(session) {
-  if (session.statusDone) return 'done';
-  if (session.retouchedCount > 0 || session.statusRetouched || session.statusPhone || session.statusGoogleDrive) {
-    return 'progress';
-  }
-  if (session.nefCount > 0) return 'progress';
+  const db = getDb();
+  const steps = (db.data.config.checklistSteps || []).map((s) => s.id);
+  const checklist = session.checklist || {};
+  const allChecked = steps.length > 0 && steps.every((id) => checklist[id]);
+  const anyChecked =
+    steps.some((id) => checklist[id]) || session.nefCount > 0 || session.retouchedCount > 0;
+  if (allChecked) return 'done';
+  if (anyChecked) return 'progress';
   return 'todo';
+}
+
+function withStatus(session) {
+  return { ...session, status: computeStatus(session) };
+}
+
+function isDevMode() {
+  return isDev || !app.isPackaged;
 }
 
 // ---------- IPC: config ----------
 
 ipcMain.handle('config:get', async () => {
   const db = getDb();
-  return db.data.config;
+  return { ...db.data.config, isDev: isDevMode() };
+});
+
+ipcMain.handle('config:rawCatalog', async () => {
+  return RAW_CATALOG;
 });
 
 ipcMain.handle('config:selectRootFolder', async () => {
@@ -140,6 +170,67 @@ ipcMain.handle('config:resetToWelcome', async () => {
   const db = getDb();
   db.data.config.rootPath = null;
   await db.write();
+  return db.data.config;
+});
+
+ipcMain.handle('config:updateRawSettings', async (_evt, { rawEnabled, rawFormats, autoConvert }) => {
+  const db = getDb();
+  db.data.config.rawEnabled = !!rawEnabled;
+  db.data.config.rawFormats = Array.isArray(rawFormats) ? rawFormats : [];
+  db.data.config.autoConvert = !!autoConvert;
+  await db.write();
+  return db.data.config;
+});
+
+ipcMain.handle('config:updateChecklistSteps', async (_evt, { steps }) => {
+  const db = getDb();
+  if (!Array.isArray(steps) || steps.length === 0) {
+    throw new Error('Il faut au moins une étape dans la liste de suivi.');
+  }
+  db.data.config.checklistSteps = steps.map((s) => ({ id: s.id, label: s.label }));
+  await db.write();
+  return db.data.config;
+});
+
+// ---------- IPC: mode développeur (masqué en version publiée) ----------
+
+ipcMain.handle('app:isDev', async () => isDevMode());
+
+ipcMain.handle('app:exportProfile', async () => {
+  if (!isDevMode()) throw new Error('Fonction réservée au mode développeur.');
+  const db = getDb();
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Exporter ta configuration RawPilot',
+    defaultPath: 'rawpilot-profil.json',
+    filters: [{ name: 'Profil RawPilot', extensions: ['json'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  fs.writeFileSync(result.filePath, JSON.stringify(db.data, null, 2), 'utf-8');
+  return result.filePath;
+});
+
+ipcMain.handle('app:importProfile', async () => {
+  if (!isDevMode()) throw new Error('Fonction réservée au mode développeur.');
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Importer un profil RawPilot',
+    properties: ['openFile'],
+    filters: [{ name: 'Profil RawPilot', extensions: ['json'] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error('Ce fichier ne semble pas être un profil RawPilot valide.');
+  }
+  const db = replaceAll(parsed);
+  return db.data.config;
+});
+
+ipcMain.handle('app:resetAll', async () => {
+  if (!isDevMode()) throw new Error('Fonction réservée au mode développeur.');
+  const db = resetAll();
   return db.data.config;
 });
 
@@ -164,9 +255,9 @@ function matchSessionFolder(name) {
 }
 
 function looksLikeSessionFolder(fullPath) {
-  // Un dossier qui contient un sous-dossier ressemblant à des NEF est probablement une session,
-  // même si son nom ne suit pas le format attendu.
-  return resolveSubfolder(fullPath, NEF_NAMES) !== null || resolveSubfolder(fullPath, JPEG_NAMES) !== null;
+  // Un dossier qui contient un sous-dossier ressemblant à des photos RAW ou JPEG
+  // est probablement une session, même si son nom ne suit pas le format attendu.
+  return resolveSubfolder(fullPath, RAW_NAMES) !== null || resolveSubfolder(fullPath, JPEG_NAMES) !== null;
 }
 
 function findSessionFolders(dirPath, depth, sessionFolders, candidateFolders) {
@@ -233,14 +324,11 @@ function addSessionFromFolder(db, folderPath, folderName, sessionNumber, date) {
     folderName,
     folderPath,
     hasMontage,
-    nefCount: countInSubfolder(folderPath, NEF_NAMES, ['.nef']),
+    nefCount: countInSubfolder(folderPath, RAW_NAMES, RAW_COUNT_EXTENSIONS),
     jpegCount: countInSubfolder(folderPath, JPEG_NAMES, ['.jpg', '.jpeg']),
     retouchedCount: countInSubfolder(folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']),
-    // Ces statuts ne peuvent pas être déduits du disque : on les laisse à toi de cocher.
-    statusGoogleDrive: false,
-    statusPhone: false,
-    statusRetouched: false,
-    statusDone: false,
+    // Ce suivi ne peut pas être déduit du disque : on laisse tout décoché.
+    checklist: {},
     createdAt: new Date().toISOString(),
   };
   db.data.sessions.push(session);
@@ -258,7 +346,7 @@ ipcMain.handle('sessions:importManual', async (_evt, { folderPath, folderName, d
   }
   const session = addSessionFromFolder(db, folderPath, folderName, sessionNumber, date);
   await db.write();
-  return { ...session, status: computeStatus(session) };
+  return withStatus(session);
 });
 
 // ---------- IPC: sessions ----------
@@ -268,7 +356,7 @@ ipcMain.handle('sessions:list', async () => {
   return db.data.sessions
     .slice()
     .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .map((s) => ({ ...s, status: computeStatus(s) }));
+    .map(withStatus);
 });
 
 ipcMain.handle('sessions:nextNumber', async () => {
@@ -296,7 +384,9 @@ ipcMain.handle('sessions:create', async (_evt, { date, sessionNumber, hasMontage
     if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
   }
 
-  const subfolders = ['.NEF', '.JPEG', '.JPEG Retouché'];
+  const subfolders = [];
+  if (db.data.config.rawEnabled) subfolders.push('.RAW');
+  subfolders.push('.JPEG', '.JPEG Retouché');
   if (hasMontage) subfolders.push('Montage Réseaux');
   for (const sub of subfolders) {
     const subPath = path.join(sessionPath, sub);
@@ -316,27 +406,25 @@ ipcMain.handle('sessions:create', async (_evt, { date, sessionNumber, hasMontage
     nefCount: 0,
     jpegCount: 0,
     retouchedCount: 0,
-    statusGoogleDrive: false,
-    statusPhone: false,
-    statusRetouched: false,
-    statusDone: false,
+    checklist: {},
     createdAt: new Date().toISOString(),
   };
 
   db.data.sessions.push(session);
   await db.write();
-  return { ...session, status: computeStatus(session) };
+  return withStatus(session);
 });
 
-ipcMain.handle('sessions:updateFlag', async (_evt, { id, field, value }) => {
+ipcMain.handle('sessions:updateChecklist', async (_evt, { id, stepId, value }) => {
   const db = getDb();
   const session = db.data.sessions.find((s) => s.id === id);
   if (!session) throw new Error('Session introuvable');
-  const allowed = ['statusGoogleDrive', 'statusPhone', 'statusRetouched', 'statusDone'];
-  if (!allowed.includes(field)) throw new Error('Champ non autorisé');
-  session[field] = value;
+  const validIds = (db.data.config.checklistSteps || []).map((s) => s.id);
+  if (!validIds.includes(stepId)) throw new Error('Étape inconnue');
+  session.checklist = session.checklist || {};
+  session.checklist[stepId] = value;
   await db.write();
-  return { ...session, status: computeStatus(session) };
+  return withStatus(session);
 });
 
 ipcMain.handle('sessions:remove', async (_evt, { id }) => {
@@ -352,7 +440,7 @@ ipcMain.handle('sessions:remove', async (_evt, { id }) => {
 ipcMain.handle('sessions:checkMissing', async () => {
   const db = getDb();
   const missing = db.data.sessions.filter((s) => !fs.existsSync(s.folderPath));
-  return missing.map((s) => ({ ...s, status: computeStatus(s) }));
+  return missing.map(withStatus);
 });
 
 ipcMain.handle('sessions:relocate', async (_evt, { id }) => {
@@ -370,11 +458,11 @@ ipcMain.handle('sessions:relocate', async (_evt, { id }) => {
   session.folderPath = newPath;
   session.folderName = path.basename(newPath);
   session.hasMontage = resolveSubfolder(newPath, MONTAGE_NAMES) !== null;
-  session.nefCount = countInSubfolder(newPath, NEF_NAMES, ['.nef']);
+  session.nefCount = countInSubfolder(newPath, RAW_NAMES, RAW_COUNT_EXTENSIONS);
   session.jpegCount = countInSubfolder(newPath, JPEG_NAMES, ['.jpg', '.jpeg']);
   session.retouchedCount = countInSubfolder(newPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']);
   await db.write();
-  return { ...session, status: computeStatus(session) };
+  return withStatus(session);
 });
 
 ipcMain.handle('sessions:updateInfo', async (_evt, { id, date, sessionNumber, hasMontage }) => {
@@ -416,12 +504,12 @@ ipcMain.handle('sessions:updateInfo', async (_evt, { id, date, sessionNumber, ha
   }
   session.hasMontage = !!hasMontage;
 
-  session.nefCount = countInSubfolder(session.folderPath, NEF_NAMES, ['.nef']);
+  session.nefCount = countInSubfolder(session.folderPath, RAW_NAMES, RAW_COUNT_EXTENSIONS);
   session.jpegCount = countInSubfolder(session.folderPath, JPEG_NAMES, ['.jpg', '.jpeg']);
   session.retouchedCount = countInSubfolder(session.folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']);
 
   await db.write();
-  return { ...session, status: computeStatus(session) };
+  return withStatus(session);
 });
 
 ipcMain.handle('sessions:openFolder', async (_evt, { id, sub }) => {
@@ -433,6 +521,7 @@ ipcMain.handle('sessions:openFolder', async (_evt, { id, sub }) => {
     const variantsByLabel = {
       '.JPEG Retouché': RETOUCHE_NAMES,
       'Montage Réseaux': MONTAGE_NAMES,
+      '.RAW': RAW_NAMES,
     };
     const variants = variantsByLabel[sub] || [sub];
     target = resolveSubfolder(session.folderPath, variants) || path.join(session.folderPath, sub);
@@ -446,78 +535,99 @@ ipcMain.handle('sessions:refreshCounts', async (_evt, { id }) => {
   const db = getDb();
   const session = db.data.sessions.find((s) => s.id === id);
   if (!session) throw new Error('Session introuvable');
-  session.nefCount = countInSubfolder(session.folderPath, NEF_NAMES, ['.nef']);
+  session.nefCount = countInSubfolder(session.folderPath, RAW_NAMES, RAW_COUNT_EXTENSIONS);
   session.jpegCount = countInSubfolder(session.folderPath, JPEG_NAMES, ['.jpg', '.jpeg']);
   session.retouchedCount = countInSubfolder(session.folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']);
   await db.write();
-  return { ...session, status: computeStatus(session) };
+  return withStatus(session);
 });
 
-function countFiles(dirPath, extensions) {
-  if (!fs.existsSync(dirPath)) return 0;
-  return fs.readdirSync(dirPath).filter((f) => extensions.includes(path.extname(f).toLowerCase())).length;
-}
+// ---------- IPC: import des photos (RAW et/ou JPEG selon la config) ----------
 
-// ---------- IPC: import NEF ----------
-
-ipcMain.handle('sessions:importNef', async (_evt, { id }) => {
+ipcMain.handle('sessions:importPhotos', async (_evt, { id }) => {
   const db = getDb();
   const session = db.data.sessions.find((s) => s.id === id);
   if (!session) throw new Error('Session introuvable');
 
+  const config = db.data.config;
+  const rawEnabled = !!config.rawEnabled;
+  const autoConvert = config.autoConvert !== false;
+  const activeFormats = Array.isArray(config.rawFormats) && config.rawFormats.length > 0
+    ? config.rawFormats
+    : RAW_CATALOG.map((f) => f.id);
+
+  const filters = rawEnabled
+    ? [{ name: 'Fichiers RAW', extensions: activeFormats }]
+    : [{ name: 'Photos', extensions: ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'heic'] }];
+
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile', 'multiSelections'],
-    filters: [{ name: 'Fichiers NEF', extensions: ['nef', 'NEF'] }],
-    title: 'Sélectionne les fichiers NEF à importer',
+    filters,
+    title: rawEnabled ? 'Sélectionne les fichiers RAW à importer' : 'Sélectionne les photos à importer',
   });
-  if (result.canceled || result.filePaths.length === 0) return { imported: 0, converted: 0 };
+  if (result.canceled || result.filePaths.length === 0) return { imported: 0, converted: 0, errors: [] };
 
-  const nefDir = resolveSubfolder(session.folderPath, NEF_NAMES) || path.join(session.folderPath, '.NEF');
   const jpegDir = resolveSubfolder(session.folderPath, JPEG_NAMES) || path.join(session.folderPath, '.JPEG');
-  if (!fs.existsSync(nefDir)) fs.mkdirSync(nefDir, { recursive: true });
   if (!fs.existsSync(jpegDir)) fs.mkdirSync(jpegDir, { recursive: true });
 
-  const et = await getExiftool();
   let imported = 0;
   let converted = 0;
   const errors = [];
 
-  for (const srcPath of result.filePaths) {
-    const baseName = path.basename(srcPath, path.extname(srcPath));
-    const destNef = path.join(nefDir, path.basename(srcPath));
-    try {
-      fs.copyFileSync(srcPath, destNef);
-      imported += 1;
-    } catch (e) {
-      errors.push(`${baseName}: échec copie NEF (${e.message})`);
-      continue;
-    }
-
-    const destJpeg = path.join(jpegDir, `${baseName}.jpg`);
-    try {
-      await et.extractJpgFromRaw(destNef, destJpeg);
-      converted += 1;
-    } catch (e1) {
+  if (!rawEnabled) {
+    // Pas de RAW : on copie directement les photos dans le dossier JPEG.
+    for (const srcPath of result.filePaths) {
+      const destPath = path.join(jpegDir, path.basename(srcPath));
       try {
-        await et.extractPreview(destNef, destJpeg);
+        fs.copyFileSync(srcPath, destPath);
+        imported += 1;
         converted += 1;
-      } catch (e2) {
-        errors.push(`${baseName}: aucun JPEG intégré trouvé`);
+      } catch (e) {
+        errors.push(`${path.basename(srcPath)}: échec de la copie (${e.message})`);
       }
+      mainWindow.webContents.send('sessions:importProgress', { id, done: imported, total: result.filePaths.length });
     }
+  } else {
+    const rawDir = resolveSubfolder(session.folderPath, RAW_NAMES) || path.join(session.folderPath, '.RAW');
+    if (!fs.existsSync(rawDir)) fs.mkdirSync(rawDir, { recursive: true });
 
-    mainWindow.webContents.send('sessions:importProgress', {
-      id,
-      done: imported,
-      total: result.filePaths.length,
-    });
+    const et = autoConvert ? await getExiftool() : null;
+
+    for (const srcPath of result.filePaths) {
+      const baseName = path.basename(srcPath, path.extname(srcPath));
+      const destRaw = path.join(rawDir, path.basename(srcPath));
+      try {
+        fs.copyFileSync(srcPath, destRaw);
+        imported += 1;
+      } catch (e) {
+        errors.push(`${baseName}: échec copie RAW (${e.message})`);
+        continue;
+      }
+
+      if (autoConvert) {
+        const destJpeg = path.join(jpegDir, `${baseName}.jpg`);
+        try {
+          await et.extractJpgFromRaw(destRaw, destJpeg);
+          converted += 1;
+        } catch (e1) {
+          try {
+            await et.extractPreview(destRaw, destJpeg);
+            converted += 1;
+          } catch (e2) {
+            errors.push(`${baseName}: aucun JPEG intégré trouvé`);
+          }
+        }
+      }
+
+      mainWindow.webContents.send('sessions:importProgress', { id, done: imported, total: result.filePaths.length });
+    }
   }
 
-  session.nefCount = countFiles(nefDir, ['.nef']);
-  session.jpegCount = countFiles(jpegDir, ['.jpg', '.jpeg']);
+  session.nefCount = countInSubfolder(session.folderPath, RAW_NAMES, RAW_COUNT_EXTENSIONS);
+  session.jpegCount = countInSubfolder(session.folderPath, JPEG_NAMES, ['.jpg', '.jpeg']);
   await db.write();
 
-  return { imported, converted, errors, session: { ...session, status: computeStatus(session) } };
+  return { imported, converted, errors, session: withStatus(session) };
 });
 
 // ---------- IPC: search ----------
@@ -525,7 +635,7 @@ ipcMain.handle('sessions:importNef', async (_evt, { id }) => {
 ipcMain.handle('sessions:search', async (_evt, { query }) => {
   const db = getDb();
   const q = (query || '').trim().toLowerCase();
-  if (!q) return db.data.sessions.map((s) => ({ ...s, status: computeStatus(s) }));
+  if (!q) return db.data.sessions.map(withStatus);
   return db.data.sessions
     .filter((s) => {
       return (
@@ -536,5 +646,5 @@ ipcMain.handle('sessions:search', async (_evt, { query }) => {
         s.folderName.toLowerCase().includes(q)
       );
     })
-    .map((s) => ({ ...s, status: computeStatus(s) }));
+    .map(withStatus);
 });

@@ -80,6 +80,18 @@ export default function App() {
     setSelectedId(null);
   }
 
+  async function handleConfigChanged(updated: Config) {
+    setConfig(updated);
+    setSelectedId(null);
+    setUnmatched([]);
+    setMissing([]);
+    if (updated.rootPath) {
+      await loadSessions();
+    } else {
+      setSessions([]);
+    }
+  }
+
   async function handleCheckMissing() {
     setShowSettings(false);
     const list = await window.rawpilot.sessions.checkMissing();
@@ -118,9 +130,9 @@ export default function App() {
     void list;
   }
 
-  async function handleUpdateFlag(field: string, value: boolean) {
+  async function handleUpdateChecklist(stepId: string, value: boolean) {
     if (!selectedId) return;
-    await window.rawpilot.sessions.updateFlag({ id: selectedId, field, value });
+    await window.rawpilot.sessions.updateChecklist({ id: selectedId, stepId, value });
     await loadSessions();
   }
 
@@ -133,13 +145,13 @@ export default function App() {
     }
   }
 
-  async function handleImportNef() {
+  async function handleImportPhotos() {
     if (!selectedId) return;
-    const result = await window.rawpilot.sessions.importNef({ id: selectedId });
+    const result = await window.rawpilot.sessions.importPhotos({ id: selectedId });
     if (result.errors && result.errors.length > 0) {
-      setNotice(`${result.converted}/${result.imported} converties. ${result.errors.length} avertissement(s).`);
+      setNotice(`${result.converted}/${result.imported} traitées. ${result.errors.length} avertissement(s).`);
     } else if (result.imported > 0) {
-      setNotice(`${result.imported} photo(s) importée(s) et converties.`);
+      setNotice(`${result.imported} photo(s) importée(s).`);
     }
     await loadSessions();
   }
@@ -189,9 +201,10 @@ export default function App() {
         {selected ? (
           <SessionDetail
             session={selected}
-            onUpdateFlag={handleUpdateFlag}
+            config={config}
+            onUpdateChecklist={handleUpdateChecklist}
             onOpenFolder={handleOpenFolder}
-            onImportNef={handleImportNef}
+            onImportPhotos={handleImportPhotos}
             onRefreshCounts={handleRefreshCounts}
             onRemove={handleRemoveSession}
             onInfoUpdated={() => loadSessions()}
@@ -221,7 +234,7 @@ export default function App() {
       )}
       {showSettings && (
         <SettingsModal
-          rootPath={config?.rootPath ?? ''}
+          config={config}
           onClose={() => setShowSettings(false)}
           onChangeRoot={() => {
             setShowSettings(false);
@@ -229,6 +242,7 @@ export default function App() {
           }}
           onResetWelcome={handleResetWelcome}
           onCheckMissing={handleCheckMissing}
+          onConfigChanged={handleConfigChanged}
         />
       )}
       {showMissing && (

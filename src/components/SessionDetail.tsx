@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Session } from '../types';
+import { Session, ChecklistStep, Config } from '../types';
 import StatusDot from './StatusDot';
 import EditSessionModal from './EditSessionModal';
 
 interface Props {
   session: Session;
-  onUpdateFlag: (field: string, value: boolean) => void;
+  config: Config;
+  onUpdateChecklist: (stepId: string, value: boolean) => void;
   onOpenFolder: (sub?: string) => void;
-  onImportNef: () => Promise<void>;
+  onImportPhotos: () => Promise<void>;
   onRefreshCounts: () => void;
   onRemove: () => void;
   onInfoUpdated: () => void;
@@ -18,21 +19,12 @@ function formatDate(dateStr: string) {
   return `${d}/${m}/${y}`;
 }
 
-type ManualField = 'statusGoogleDrive' | 'statusPhone' | 'statusRetouched' | 'statusDone';
-
-const STEP_ORDER: ManualField[] = ['statusGoogleDrive', 'statusPhone', 'statusRetouched', 'statusDone'];
-const STEP_LABELS: Record<ManualField, string> = {
-  statusGoogleDrive: 'Importé Google Drive',
-  statusPhone: 'Importé sur téléphone',
-  statusRetouched: 'Retouché',
-  statusDone: 'Terminé',
-};
-
 export default function SessionDetail({
   session,
-  onUpdateFlag,
+  config,
+  onUpdateChecklist,
   onOpenFolder,
-  onImportNef,
+  onImportPhotos,
   onRefreshCounts,
   onRemove,
   onInfoUpdated,
@@ -41,6 +33,9 @@ export default function SessionDetail({
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [showEdit, setShowEdit] = useState(false);
 
+  const steps: ChecklistStep[] = config.checklistSteps;
+  const rawEnabled = config.rawEnabled;
+
   useEffect(() => {
     const unsubscribe = window.rawpilot.sessions.onImportProgress((data) => {
       if (data.id === session.id) setProgress({ done: data.done, total: data.total });
@@ -48,31 +43,33 @@ export default function SessionDetail({
     return unsubscribe;
   }, [session.id]);
 
-  const mismatch = session.nefCount > 0 && session.nefCount !== session.jpegCount;
+  const mismatch = rawEnabled && session.nefCount > 0 && session.nefCount !== session.jpegCount;
 
   async function handleImport() {
     setImporting(true);
     setProgress(null);
     try {
-      await onImportNef();
+      await onImportPhotos();
     } finally {
       setImporting(false);
       setProgress(null);
     }
   }
 
-  function handleCheck(field: ManualField, value: boolean) {
+  function handleCheck(stepId: string, value: boolean) {
     if (value) {
-      const idx = STEP_ORDER.indexOf(field);
-      const missingPrior = STEP_ORDER.slice(0, idx).find((f) => !session[f]);
+      const idx = steps.findIndex((s) => s.id === stepId);
+      const checklist = session.checklist || {};
+      const missingPrior = steps.slice(0, idx).find((s) => !checklist[s.id]);
       if (missingPrior) {
+        const currentLabel = steps[idx]?.label ?? stepId;
         const ok = window.confirm(
-          `L'étape "${STEP_LABELS[missingPrior]}" n'est pas encore cochée. Cocher quand même "${STEP_LABELS[field]}" ?`
+          `L'étape "${missingPrior.label}" n'est pas encore cochée. Cocher quand même "${currentLabel}" ?`
         );
         if (!ok) return;
       }
     }
-    onUpdateFlag(field, value);
+    onUpdateChecklist(stepId, value);
   }
 
   function handleRemove() {
@@ -81,6 +78,11 @@ export default function SessionDetail({
     );
     if (ok) onRemove();
   }
+
+  const checklist = session.checklist || {};
+  const hasSkippedStep = steps.some(
+    (s, i) => checklist[s.id] && steps.slice(0, i).some((prior) => !checklist[prior.id])
+  );
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -113,11 +115,13 @@ export default function SessionDetail({
         </div>
 
         {/* Compteurs */}
-        <div className="grid grid-cols-3 gap-3 my-6">
-          <div className="bg-base-surface border border-base-border rounded-xl p-4">
-            <p className="text-xs text-ink-dim mb-1">NEF</p>
-            <p className="text-xl font-semibold frame-counter inline-block">{session.nefCount}</p>
-          </div>
+        <div className={`grid gap-3 my-6 ${rawEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          {rawEnabled && (
+            <div className="bg-base-surface border border-base-border rounded-xl p-4">
+              <p className="text-xs text-ink-dim mb-1">RAW</p>
+              <p className="text-xl font-semibold frame-counter inline-block">{session.nefCount}</p>
+            </div>
+          )}
           <div className="bg-base-surface border border-base-border rounded-xl p-4">
             <p className="text-xs text-ink-dim mb-1">JPEG</p>
             <p className="text-xl font-semibold frame-counter inline-block">{session.jpegCount}</p>
@@ -130,8 +134,8 @@ export default function SessionDetail({
 
         {mismatch && (
           <div className="bg-status-progress/10 border border-status-progress/40 text-status-progress text-sm rounded-xl px-4 py-3 mb-6">
-            🟠 Attention — {session.nefCount} NEF mais {session.jpegCount} JPEG. Certaines photos n'ont peut-être pas été
-            converties.
+            🟠 Attention — {session.nefCount} RAW mais {session.jpegCount} JPEG. Certaines photos n'ont peut-être pas
+            été converties.
           </div>
         )}
 
@@ -154,7 +158,7 @@ export default function SessionDetail({
             disabled={importing}
             className="bg-accent hover:bg-accent-dim transition-colors text-white text-sm font-medium rounded-lg px-3 py-2 disabled:opacity-60"
           >
-            {importing ? 'Import en cours…' : 'Importer les NEF'}
+            {importing ? 'Import en cours…' : rawEnabled ? 'Importer les RAW' : 'Importer des photos'}
           </button>
         </div>
 
@@ -178,32 +182,24 @@ export default function SessionDetail({
 
           <div className="space-y-2 mb-4">
             <ChecklistRow label="Dossiers créés" checked disabled />
-            <ChecklistRow label="NEF importés" checked={session.nefCount > 0} disabled />
+            {rawEnabled && <ChecklistRow label="RAW importés" checked={session.nefCount > 0} disabled />}
             <ChecklistRow label="JPEG créés" checked={session.jpegCount > 0} disabled />
           </div>
 
           <div className="h-px bg-base-border my-4" />
 
           <div className="space-y-2">
-            <ChecklistRow
-              label="Importé Google Drive"
-              checked={session.statusGoogleDrive}
-              onChange={(v) => handleCheck('statusGoogleDrive', v)}
-            />
-            <ChecklistRow
-              label="Importé sur téléphone"
-              checked={session.statusPhone}
-              onChange={(v) => handleCheck('statusPhone', v)}
-            />
-            <ChecklistRow
-              label="Retouché"
-              checked={session.statusRetouched}
-              onChange={(v) => handleCheck('statusRetouched', v)}
-            />
-            <ChecklistRow label="Terminé" checked={session.statusDone} onChange={(v) => handleCheck('statusDone', v)} />
+            {steps.map((step) => (
+              <ChecklistRow
+                key={step.id}
+                label={step.label}
+                checked={!!checklist[step.id]}
+                onChange={(v) => handleCheck(step.id, v)}
+              />
+            ))}
           </div>
 
-          {STEP_ORDER.some((f, i) => session[f] && STEP_ORDER.slice(0, i).some((prior) => !session[prior])) && (
+          {hasSkippedStep && (
             <p className="text-xs text-status-progress mt-3">
               🟡 Une étape précédente n'est pas cochée — enchaînement inhabituel.
             </p>
@@ -226,13 +222,7 @@ export default function SessionDetail({
         </div>
       </div>
 
-      {showEdit && (
-        <EditSessionModal
-          session={session}
-          onClose={() => setShowEdit(false)}
-          onUpdated={onInfoUpdated}
-        />
-      )}
+      {showEdit && <EditSessionModal session={session} onClose={() => setShowEdit(false)} onUpdated={onInfoUpdated} />}
     </div>
   );
 }

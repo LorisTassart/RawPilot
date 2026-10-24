@@ -7,10 +7,65 @@ const MONTHS_FR = [
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
 ];
 
-const DEFAULT_DATA = { config: { rootPath: null }, sessions: [] };
+// Catalogue des formats RAW propriétaires les plus courants.
+const RAW_CATALOG = [
+  { id: 'nef', label: 'Nikon (.NEF)' },
+  { id: 'cr2', label: 'Canon (.CR2)' },
+  { id: 'cr3', label: 'Canon (.CR3)' },
+  { id: 'arw', label: 'Sony (.ARW)' },
+  { id: 'raf', label: 'Fujifilm (.RAF)' },
+  { id: 'rw2', label: 'Panasonic (.RW2)' },
+  { id: 'orf', label: 'Olympus / OM System (.ORF)' },
+  { id: 'pef', label: 'Pentax (.PEF)' },
+  { id: 'srw', label: 'Samsung (.SRW)' },
+  { id: 'dng', label: 'DNG (universel / Adobe)' },
+];
+
+const DEFAULT_CHECKLIST_STEPS = [
+  { id: 'google_drive', label: 'Importé Google Drive' },
+  { id: 'phone', label: 'Importé sur téléphone' },
+  { id: 'retouched', label: 'Retouché' },
+  { id: 'done', label: 'Terminé' },
+];
+
+function defaultConfig() {
+  return {
+    rootPath: null,
+    rawEnabled: false,
+    rawFormats: [],
+    autoConvert: true,
+    checklistSteps: JSON.parse(JSON.stringify(DEFAULT_CHECKLIST_STEPS)),
+  };
+}
+
+const DEFAULT_DATA = { config: defaultConfig(), sessions: [] };
 
 let filePath;
 let cache;
+
+function migrate(data) {
+  data.config = data.config || defaultConfig();
+  if (data.config.rawEnabled === undefined) data.config.rawEnabled = false;
+  if (!Array.isArray(data.config.rawFormats)) data.config.rawFormats = [];
+  if (data.config.autoConvert === undefined) data.config.autoConvert = true;
+  if (!Array.isArray(data.config.checklistSteps) || data.config.checklistSteps.length === 0) {
+    data.config.checklistSteps = JSON.parse(JSON.stringify(DEFAULT_CHECKLIST_STEPS));
+  }
+  data.sessions = data.sessions || [];
+
+  for (const s of data.sessions) {
+    if (!s.checklist) {
+      // Migration depuis l'ancien format à 4 cases fixes.
+      s.checklist = {
+        google_drive: !!s.statusGoogleDrive,
+        phone: !!s.statusPhone,
+        retouched: !!s.statusRetouched,
+        done: !!s.statusDone,
+      };
+    }
+  }
+  return data;
+}
 
 async function initDb() {
   const userDataPath = app.getPath('userData');
@@ -26,8 +81,7 @@ async function initDb() {
   } else {
     cache = JSON.parse(JSON.stringify(DEFAULT_DATA));
   }
-  cache.config = cache.config || { rootPath: null };
-  cache.sessions = cache.sessions || [];
+  cache = migrate(cache);
   writeSync();
   return getDb();
 }
@@ -44,4 +98,17 @@ function getDb() {
   };
 }
 
-module.exports = { initDb, getDb, MONTHS_FR };
+function resetAll() {
+  cache = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  writeSync();
+  return getDb();
+}
+
+function replaceAll(newData) {
+  const migrated = migrate(JSON.parse(JSON.stringify(newData)));
+  cache = migrated;
+  writeSync();
+  return getDb();
+}
+
+module.exports = { initDb, getDb, resetAll, replaceAll, MONTHS_FR, RAW_CATALOG, DEFAULT_CHECKLIST_STEPS };
