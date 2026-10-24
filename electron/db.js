@@ -63,6 +63,11 @@ function migrate(data) {
         done: !!s.statusDone,
       };
     }
+    if (s.category === undefined) s.category = null;
+    if (s.clientName === undefined) s.clientName = '';
+    if (s.location === undefined) s.location = '';
+    if (s.notes === undefined) s.notes = '';
+    if (s.completedAt === undefined) s.completedAt = null;
   }
   return data;
 }

@@ -5,6 +5,8 @@ export interface ChecklistStep {
   label: string;
 }
 
+export type SessionCategory = 'client' | 'event';
+
 export interface Session {
   id: string;
   year: number;
@@ -19,6 +21,11 @@ export interface Session {
   jpegCount: number;
   retouchedCount: number;
   checklist: Record<string, boolean>;
+  category: SessionCategory | null;
+  clientName: string;
+  location: string;
+  notes: string;
+  completedAt: string | null;
   createdAt: string;
   status: SessionStatus;
 }
@@ -67,13 +74,25 @@ declare global {
       sessions: {
         list: () => Promise<Session[]>;
         nextNumber: () => Promise<number>;
-        create: (payload: { date: string; sessionNumber: number; hasMontage: boolean }) => Promise<Session>;
+        create: (payload: {
+          date: string;
+          sessionNumber: number;
+          hasMontage: boolean;
+          category: SessionCategory | null;
+          clientName: string;
+          location: string;
+          notes: string;
+        }) => Promise<Session>;
         updateChecklist: (payload: { id: string; stepId: string; value: boolean }) => Promise<Session>;
         updateInfo: (payload: {
           id: string;
           date: string;
           sessionNumber: number;
           hasMontage: boolean;
+          category: SessionCategory | null;
+          clientName: string;
+          location: string;
+          notes: string;
         }) => Promise<Session>;
         openFolder: (payload: { id: string; sub?: string }) => Promise<boolean>;
         refreshCounts: (payload: { id: string }) => Promise<Session>;

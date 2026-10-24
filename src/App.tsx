@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Config, Session, UnmatchedFolder } from './types';
+import { Config, Session, SessionCategory, UnmatchedFolder } from './types';
 import WelcomeSetup from './components/WelcomeSetup';
 import Sidebar from './components/Sidebar';
 import SessionDetail from './components/SessionDetail';
@@ -7,6 +7,7 @@ import NewSessionModal from './components/NewSessionModal';
 import UnmatchedFoldersModal from './components/UnmatchedFoldersModal';
 import SettingsModal from './components/SettingsModal';
 import MissingFoldersModal from './components/MissingFoldersModal';
+import Dashboard from './components/Dashboard';
 
 export default function App() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -21,6 +22,10 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [missing, setMissing] = useState<Session[]>([]);
   const [showMissing, setShowMissing] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'todo' | 'progress' | 'done'>('all');
+  const [filterCategory, setFilterCategory] = useState<'all' | SessionCategory>('all');
+  const [filterYear, setFilterYear] = useState<'all' | number>('all');
 
   useEffect(() => {
     (async () => {
@@ -122,7 +127,15 @@ export default function App() {
     await loadSessions(v);
   }
 
-  async function handleCreateSession(payload: { date: string; sessionNumber: number; hasMontage: boolean }) {
+  async function handleCreateSession(payload: {
+    date: string;
+    sessionNumber: number;
+    hasMontage: boolean;
+    category: SessionCategory | null;
+    clientName: string;
+    location: string;
+    notes: string;
+  }) {
     const session = await window.rawpilot.sessions.create(payload);
     const list = await loadSessions();
     setSelectedId(session.id);
@@ -176,12 +189,24 @@ export default function App() {
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
 
+  const availableYears = Array.from(new Set(sessions.map((s) => s.year))).sort((a, b) => b - a);
+
+  const filteredSessions = sessions.filter((s) => {
+    if (filterStatus !== 'all' && s.status !== filterStatus) return false;
+    if (filterCategory !== 'all' && s.category !== filterCategory) return false;
+    if (filterYear !== 'all' && s.year !== filterYear) return false;
+    return true;
+  });
+
   return (
     <div className="h-screen w-screen bg-base-bg text-ink flex overflow-hidden">
       <Sidebar
-        sessions={sessions}
+        sessions={filteredSessions}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        onSelect={(id) => {
+          setSelectedId(id);
+          setShowDashboard(false);
+        }}
         onNewSession={() => setShowModal(true)}
         onRescan={handleRescan}
         unmatchedCount={unmatched.length}
@@ -189,6 +214,18 @@ export default function App() {
         onOpenSettings={() => setShowSettings(true)}
         search={search}
         onSearchChange={handleSearchChange}
+        showDashboard={showDashboard}
+        onToggleDashboard={() => {
+          setShowDashboard((v) => !v);
+          setSelectedId(null);
+        }}
+        filterStatus={filterStatus}
+        onFilterStatusChange={setFilterStatus}
+        filterCategory={filterCategory}
+        onFilterCategoryChange={setFilterCategory}
+        filterYear={filterYear}
+        onFilterYearChange={setFilterYear}
+        availableYears={availableYears}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
@@ -198,7 +235,9 @@ export default function App() {
           </div>
         )}
 
-        {selected ? (
+        {showDashboard ? (
+          <Dashboard sessions={sessions} />
+        ) : selected ? (
           <SessionDetail
             session={selected}
             config={config}

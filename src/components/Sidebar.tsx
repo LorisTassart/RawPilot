@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Session } from '../types';
+import { Session, SessionCategory } from '../types';
 import StatusDot from './StatusDot';
 import SearchBar from './SearchBar';
 import logo from '../assets/logo.png';
@@ -15,6 +15,15 @@ interface Props {
   onOpenSettings: () => void;
   search: string;
   onSearchChange: (v: string) => void;
+  showDashboard: boolean;
+  onToggleDashboard: () => void;
+  filterStatus: 'all' | 'todo' | 'progress' | 'done';
+  onFilterStatusChange: (v: 'all' | 'todo' | 'progress' | 'done') => void;
+  filterCategory: 'all' | SessionCategory;
+  onFilterCategoryChange: (v: 'all' | SessionCategory) => void;
+  filterYear: 'all' | number;
+  onFilterYearChange: (v: 'all' | number) => void;
+  availableYears: number[];
 }
 
 export default function Sidebar({
@@ -28,6 +37,15 @@ export default function Sidebar({
   onOpenSettings,
   search,
   onSearchChange,
+  showDashboard,
+  onToggleDashboard,
+  filterStatus,
+  onFilterStatusChange,
+  filterCategory,
+  onFilterCategoryChange,
+  filterYear,
+  onFilterYearChange,
+  availableYears,
 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -66,6 +84,9 @@ export default function Sidebar({
     });
   }
 
+  const selectClass =
+    'bg-base-surface2 border border-base-border rounded-md px-1.5 py-1 text-[11px] text-ink-dim flex-1';
+
   return (
     <aside className="w-72 shrink-0 bg-base-surface border-r border-base-border flex flex-col h-full">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
@@ -73,13 +94,24 @@ export default function Sidebar({
           <img src={logo} alt="RawPilot" className="h-7 w-7 rounded-md object-cover" />
           <h1 className="text-sm font-semibold tracking-wide text-ink">RawPilot</h1>
         </div>
-        <button
-          onClick={onOpenSettings}
-          title="Paramètres"
-          className="text-ink-faint hover:text-ink text-sm w-7 h-7 flex items-center justify-center rounded-lg hover:bg-base-surface2"
-        >
-          ⚙
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onToggleDashboard}
+            title="Tableau de bord"
+            className={`text-sm w-7 h-7 flex items-center justify-center rounded-lg hover:bg-base-surface2 ${
+              showDashboard ? 'text-accent bg-base-surface2' : 'text-ink-faint hover:text-ink'
+            }`}
+          >
+            📊
+          </button>
+          <button
+            onClick={onOpenSettings}
+            title="Paramètres"
+            className="text-ink-faint hover:text-ink text-sm w-7 h-7 flex items-center justify-center rounded-lg hover:bg-base-surface2"
+          >
+            ⚙
+          </button>
+        </div>
       </div>
       <div className="px-3">
         <button
@@ -90,6 +122,40 @@ export default function Sidebar({
         </button>
       </div>
       <SearchBar value={search} onChange={onSearchChange} />
+
+      <div className="px-3 pb-2 flex gap-1.5">
+        <select
+          value={filterStatus}
+          onChange={(e) => onFilterStatusChange(e.target.value as any)}
+          className={selectClass}
+        >
+          <option value="all">Tout statut</option>
+          <option value="todo">🔴 À faire</option>
+          <option value="progress">🟡 En cours</option>
+          <option value="done">🟢 Terminé</option>
+        </select>
+        <select
+          value={filterCategory}
+          onChange={(e) => onFilterCategoryChange(e.target.value as any)}
+          className={selectClass}
+        >
+          <option value="all">Tout type</option>
+          <option value="client">👤 Client</option>
+          <option value="event">📅 Événement</option>
+        </select>
+        <select
+          value={filterYear}
+          onChange={(e) => onFilterYearChange(e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10))}
+          className={selectClass}
+        >
+          <option value="all">Toute année</option>
+          {availableYears.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="px-3 pb-2 -mt-1 flex flex-col gap-1">
         <button
@@ -108,7 +174,7 @@ export default function Sidebar({
 
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {tree.length === 0 && (
-          <p className="text-xs text-ink-faint px-2 py-6 text-center">Aucune session pour l'instant.</p>
+          <p className="text-xs text-ink-faint px-2 py-6 text-center">Aucune session ne correspond.</p>
         )}
         {tree.map(({ year, months }) => (
           <div key={year} className="mb-2">
@@ -131,11 +197,16 @@ export default function Sidebar({
                         key={s.id}
                         onClick={() => onSelect(s.id)}
                         className={`w-full flex items-center gap-2 pl-7 pr-2 py-1.5 rounded-lg text-sm text-left transition-colors ${
-                          selectedId === s.id ? 'bg-base-surface2 text-ink' : 'text-ink-dim hover:bg-base-surface2/60'
+                          !showDashboard && selectedId === s.id
+                            ? 'bg-base-surface2 text-ink'
+                            : 'text-ink-dim hover:bg-base-surface2/60'
                         }`}
                       >
                         <StatusDot status={s.status} />
-                        <span>Session {s.sessionNumber}</span>
+                        <span className="truncate">
+                          Session {s.sessionNumber}
+                          {s.category === 'client' && s.clientName ? ` · ${s.clientName}` : ''}
+                        </span>
                       </button>
                     ))}
                 </div>

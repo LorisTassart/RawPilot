@@ -142,6 +142,15 @@ suivi" l'enlève de la liste de RawPilot — **sans jamais supprimer, déplacer 
 le moindre fichier sur ton disque**. Utile si une session a été créée par erreur ou si tu
 ne veux plus la suivre.
 
+- **Type de session, client et notes** : chaque session peut être marquée "Client" (avec
+  un nom) ou "Événement", avec un lieu et des notes libres. Visible et modifiable via
+  "✎ modifier".
+- **📊 Tableau de bord** (icône en haut de la barre latérale) : nombre de sessions ce
+  mois-ci / cette année, total de photos livrées, délai moyen entre la date du shooting
+  et "Terminé", répartition par statut et par type.
+- **Filtres** : sous la barre de recherche, filtre par statut, par type (Client /
+  Événement) et par année.
+
 ## Comment ça marche
 
 - **Création d'un shooting** : tu donnes une date + un numéro de session (proposé

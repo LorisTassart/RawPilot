@@ -329,6 +329,11 @@ function addSessionFromFolder(db, folderPath, folderName, sessionNumber, date) {
     retouchedCount: countInSubfolder(folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']),
     // Ce suivi ne peut pas être déduit du disque : on laisse tout décoché.
     checklist: {},
+    category: null,
+    clientName: '',
+    location: '',
+    notes: '',
+    completedAt: null,
     createdAt: new Date().toISOString(),
   };
   db.data.sessions.push(session);
@@ -365,7 +370,7 @@ ipcMain.handle('sessions:nextNumber', async () => {
   return max + 1;
 });
 
-ipcMain.handle('sessions:create', async (_evt, { date, sessionNumber, hasMontage }) => {
+ipcMain.handle('sessions:create', async (_evt, { date, sessionNumber, hasMontage, category, clientName, location, notes }) => {
   const db = getDb();
   const rootPath = db.data.config.rootPath;
   if (!rootPath) throw new Error('Aucun dossier racine configuré.');
@@ -407,6 +412,11 @@ ipcMain.handle('sessions:create', async (_evt, { date, sessionNumber, hasMontage
     jpegCount: 0,
     retouchedCount: 0,
     checklist: {},
+    category: category || null,
+    clientName: (clientName || '').trim(),
+    location: (location || '').trim(),
+    notes: (notes || '').trim(),
+    completedAt: null,
     createdAt: new Date().toISOString(),
   };
 
@@ -421,8 +431,15 @@ ipcMain.handle('sessions:updateChecklist', async (_evt, { id, stepId, value }) =
   if (!session) throw new Error('Session introuvable');
   const validIds = (db.data.config.checklistSteps || []).map((s) => s.id);
   if (!validIds.includes(stepId)) throw new Error('Étape inconnue');
+  const wasDone = computeStatus(session) === 'done';
   session.checklist = session.checklist || {};
   session.checklist[stepId] = value;
+  const isDoneNow = computeStatus(session) === 'done';
+  if (isDoneNow && !wasDone) {
+    session.completedAt = new Date().toISOString();
+  } else if (!isDoneNow) {
+    session.completedAt = null;
+  }
   await db.write();
   return withStatus(session);
 });
@@ -465,7 +482,9 @@ ipcMain.handle('sessions:relocate', async (_evt, { id }) => {
   return withStatus(session);
 });
 
-ipcMain.handle('sessions:updateInfo', async (_evt, { id, date, sessionNumber, hasMontage }) => {
+ipcMain.handle(
+  'sessions:updateInfo',
+  async (_evt, { id, date, sessionNumber, hasMontage, category, clientName, location, notes }) => {
   const db = getDb();
   const rootPath = db.data.config.rootPath;
   const session = db.data.sessions.find((s) => s.id === id);
@@ -508,9 +527,15 @@ ipcMain.handle('sessions:updateInfo', async (_evt, { id, date, sessionNumber, ha
   session.jpegCount = countInSubfolder(session.folderPath, JPEG_NAMES, ['.jpg', '.jpeg']);
   session.retouchedCount = countInSubfolder(session.folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']);
 
+  session.category = category || null;
+  session.clientName = (clientName || '').trim();
+  session.location = (location || '').trim();
+  session.notes = (notes || '').trim();
+
   await db.write();
   return withStatus(session);
-});
+  }
+);
 
 ipcMain.handle('sessions:openFolder', async (_evt, { id, sub }) => {
   const db = getDb();
