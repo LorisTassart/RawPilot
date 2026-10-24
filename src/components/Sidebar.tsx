@@ -1,0 +1,108 @@
+import { useMemo, useState } from 'react';
+import { Session } from '../types';
+import StatusDot from './StatusDot';
+import SearchBar from './SearchBar';
+
+interface Props {
+  sessions: Session[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onNewSession: () => void;
+  search: string;
+  onSearchChange: (v: string) => void;
+}
+
+export default function Sidebar({ sessions, selectedId, onSelect, onNewSession, search, onSearchChange }: Props) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const tree = useMemo(() => {
+    const byYear = new Map<number, Map<string, Session[]>>();
+    for (const s of sessions) {
+      if (!byYear.has(s.year)) byYear.set(s.year, new Map());
+      const months = byYear.get(s.year)!;
+      if (!months.has(s.monthName)) months.set(s.monthName, []);
+      months.get(s.monthName)!.push(s);
+    }
+    const years = Array.from(byYear.keys()).sort((a, b) => b - a);
+    return years.map((year) => {
+      const monthsMap = byYear.get(year)!;
+      const monthEntries = Array.from(monthsMap.entries()).sort((a, b) => {
+        const ma = a[1][0]?.month ?? 0;
+        const mb = b[1][0]?.month ?? 0;
+        return ma - mb;
+      });
+      return {
+        year,
+        months: monthEntries.map(([monthName, list]) => ({
+          monthName,
+          sessions: list.slice().sort((a, b) => a.sessionNumber - b.sessionNumber),
+        })),
+      };
+    });
+  }, [sessions]);
+
+  function toggle(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <aside className="w-72 shrink-0 bg-base-surface border-r border-base-border flex flex-col h-full">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <h1 className="text-sm font-semibold tracking-wide text-ink">📷 RawPilot</h1>
+      </div>
+      <div className="px-3">
+        <button
+          onClick={onNewSession}
+          className="w-full bg-accent hover:bg-accent-dim transition-colors text-white text-sm font-medium rounded-xl py-2"
+        >
+          + Nouveau shooting
+        </button>
+      </div>
+      <SearchBar value={search} onChange={onSearchChange} />
+
+      <div className="flex-1 overflow-y-auto px-2 pb-4">
+        {tree.length === 0 && (
+          <p className="text-xs text-ink-faint px-2 py-6 text-center">Aucune session pour l'instant.</p>
+        )}
+        {tree.map(({ year, months }) => (
+          <div key={year} className="mb-2">
+            <div className="px-2 py-1 text-xs font-semibold text-ink-dim">{year}</div>
+            {months.map(({ monthName, sessions: monthSessions }) => {
+              const key = `${year}-${monthName}`;
+              const isCollapsed = collapsed.has(key);
+              return (
+                <div key={key} className="mb-1">
+                  <button
+                    onClick={() => toggle(key)}
+                    className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-ink-dim hover:text-ink rounded-lg"
+                  >
+                    <span className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`}>▾</span>
+                    {monthName}
+                  </button>
+                  {!isCollapsed &&
+                    monthSessions.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => onSelect(s.id)}
+                        className={`w-full flex items-center gap-2 pl-7 pr-2 py-1.5 rounded-lg text-sm text-left transition-colors ${
+                          selectedId === s.id ? 'bg-base-surface2 text-ink' : 'text-ink-dim hover:bg-base-surface2/60'
+                        }`}
+                      >
+                        <StatusDot status={s.status} />
+                        <span>Session {s.sessionNumber}</span>
+                      </button>
+                    ))}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}
