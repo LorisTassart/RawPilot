@@ -45,4 +45,12 @@
     background-size: 14px 14px;
     background-position: 4px center;
   }
+
+  /* Zone de déplacement de la fenêtre (barre de titre native masquée). */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
 }

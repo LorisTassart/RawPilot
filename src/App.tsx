@@ -9,6 +9,7 @@ import SettingsModal from './components/SettingsModal';
 import MissingFoldersModal from './components/MissingFoldersModal';
 import Dashboard from './components/Dashboard';
 import DocumentsPanel from './components/DocumentsPanel';
+import TitleBar from './components/TitleBar';
 
 export default function App() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -180,13 +181,20 @@ export default function App() {
   }
 
   if (loading) {
-    return <div className="h-screen w-screen bg-base-bg" />;
+    return (
+      <div className="h-screen w-screen bg-base-bg flex flex-col">
+        <TitleBar />
+      </div>
+    );
   }
 
   if (!config?.rootPath) {
     return (
-      <div className="h-screen w-screen bg-base-bg text-ink">
-        <WelcomeSetup onChoose={handleChooseRoot} />
+      <div className="h-screen w-screen bg-base-bg text-ink flex flex-col">
+        <TitleBar />
+        <div className="flex-1 overflow-hidden">
+          <WelcomeSetup onChoose={handleChooseRoot} />
+        </div>
       </div>
     );
   }
@@ -203,7 +211,9 @@ export default function App() {
   });
 
   return (
-    <div className="h-screen w-screen bg-base-bg text-ink flex overflow-hidden">
+    <div className="h-screen w-screen bg-base-bg text-ink flex flex-col overflow-hidden">
+      <TitleBar />
+      <div className="flex-1 flex overflow-hidden">
       <Sidebar
         sessions={filteredSessions}
         selectedId={selectedId}
@@ -276,6 +286,7 @@ export default function App() {
           </div>
         )}
       </main>
+      </div>
 
       {showModal && <NewSessionModal onClose={() => setShowModal(false)} onCreate={handleCreateSession} />}
       {showUnmatched && (

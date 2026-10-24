@@ -203,6 +203,22 @@ affiche". L'image choisie (png/jpg/webp) est copiée dans le dossier de la sessi
 le nom `affiche.<extension>` — tu peux la changer ou la retirer à tout moment. Rien
 n'apparaît pour les sessions "Client" ou sans catégorie.
 
+## 🖥️ Fenêtre propre, sécurité et lancement quotidien
+
+- **Une seule fenêtre** : plus de menu "Fichier / Édition / Affichage…" et plus d'outils de
+  développement qui s'ouvrent tout seuls. En mode développement, `Ctrl+Shift+I` (ou `F12`)
+  les ouvre à la demande.
+- **Barre de titre aux couleurs de l'appli** (Windows) : la bande blanche est remplacée par
+  une bande sombre ; réduire / agrandir / fermer restent les boutons natifs. Glisse la bande
+  du haut pour déplacer la fenêtre.
+- **Sécurité renforcée** : l'appli tourne en mode "sandbox", avec une politique de sécurité
+  du contenu stricte (aucun script distant, aucun `eval`) une fois packagée.
+- **Pour un usage quotidien sans terminal ni avertissement** : construis l'appli une fois
+  (`npm run dist:win`, ou double-clique sur le .bat d'installation puis lance la commande
+  dans le dossier), puis utilise le `.exe` généré dans `release/` (installeur ou portable).
+  L'avertissement "Insecure Content-Security-Policy" n'existe qu'en mode développement
+  (`npm run dev`) et disparaît dans l'appli construite.
+
 ## Comment ça marche
 
 - **Création d'un shooting** : tu donnes une date + un numéro de session (proposé

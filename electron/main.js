@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
@@ -26,30 +26,63 @@ async function getExiftool() {
 }
 
 function createWindow() {
+  const isWindows = process.platform === 'win32';
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 980,
     minHeight: 640,
     backgroundColor: '#0e1013',
-    titleBarStyle: 'hiddenInset',
     icon: path.join(__dirname, 'icon.png'),
+    // Sur Windows, la barre de titre blanche par défaut est masquée et remplacée par une
+    // bande aux couleurs de l'appli (réduire/agrandir/fermer restent natifs et fonctionnels).
+    ...(isWindows
+      ? { titleBarStyle: 'hidden', titleBarOverlay: { color: '#161a1f', symbolColor: '#e8e6e1', height: 32 } }
+      : { titleBarStyle: 'hiddenInset' }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    // Plus d'ouverture automatique des DevTools : Ctrl+Shift+I / F12 les ouvrent à la
+    // demande en développement uniquement (jamais dans l'appli packagée).
+    mainWindow.webContents.on('before-input-event', (_event, input) => {
+      const wantsDevTools =
+        (input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12';
+      if (wantsDevTools) mainWindow.webContents.toggleDevTools();
+    });
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
 }
 
+// Politique de sécurité du contenu : stricte une fois l'appli packagée (aucun script
+// distant, aucun eval), un peu assouplie en développement pour le serveur Vite.
+function applyContentSecurityPolicy() {
+  const csp = isDev
+    ? "default-src 'self' http://localhost:5173 ws://localhost:5173; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173; " +
+      "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
+      "connect-src 'self' http://localhost:5173 ws://localhost:5173;"
+    : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data: blob:; connect-src 'self';";
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [csp] },
+    });
+  });
+}
+
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null); // retire la barre Fichier / Édition / Affichage...
+  applyContentSecurityPolicy();
   await initDb();
   createWindow();
 

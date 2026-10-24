@@ -89,7 +89,7 @@ export default function Sidebar({
   }
 
   const selectClass =
-    'bg-base-surface2 border border-base-border rounded-md px-1.5 py-1 text-[11px] text-ink-dim flex-1';
+    'bg-base-surface2 border border-base-border rounded-md px-1 py-1 text-[11px] text-ink-dim flex-1 min-w-0 w-0';
 
   return (
     <aside className="w-72 shrink-0 bg-base-surface border-r border-base-border flex flex-col h-full">
