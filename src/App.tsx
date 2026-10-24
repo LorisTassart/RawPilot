@@ -194,6 +194,7 @@ export default function App() {
             onImportNef={handleImportNef}
             onRefreshCounts={handleRefreshCounts}
             onRemove={handleRemoveSession}
+            onInfoUpdated={() => loadSessions()}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center">

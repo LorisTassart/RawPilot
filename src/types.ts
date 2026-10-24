@@ -13,6 +13,7 @@ export interface Session {
   nefCount: number;
   jpegCount: number;
   retouchedCount: number;
+  statusGoogleDrive: boolean;
   statusPhone: boolean;
   statusRetouched: boolean;
   statusDone: boolean;
@@ -50,6 +51,12 @@ declare global {
         nextNumber: () => Promise<number>;
         create: (payload: { date: string; sessionNumber: number; hasMontage: boolean }) => Promise<Session>;
         updateFlag: (payload: { id: string; field: string; value: boolean }) => Promise<Session>;
+        updateInfo: (payload: {
+          id: string;
+          date: string;
+          sessionNumber: number;
+          hasMontage: boolean;
+        }) => Promise<Session>;
         openFolder: (payload: { id: string; sub?: string }) => Promise<boolean>;
         refreshCounts: (payload: { id: string }) => Promise<Session>;
         importNef: (payload: { id: string }) => Promise<ImportResult>;

@@ -110,7 +110,9 @@ function sessionFolderName(sessionNumber, dateStr) {
 
 function computeStatus(session) {
   if (session.statusDone) return 'done';
-  if (session.retouchedCount > 0 || session.statusRetouched) return 'progress';
+  if (session.retouchedCount > 0 || session.statusRetouched || session.statusPhone || session.statusGoogleDrive) {
+    return 'progress';
+  }
   if (session.nefCount > 0) return 'progress';
   return 'todo';
 }
@@ -234,7 +236,8 @@ function addSessionFromFolder(db, folderPath, folderName, sessionNumber, date) {
     nefCount: countInSubfolder(folderPath, NEF_NAMES, ['.nef']),
     jpegCount: countInSubfolder(folderPath, JPEG_NAMES, ['.jpg', '.jpeg']),
     retouchedCount: countInSubfolder(folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']),
-    // Ces trois statuts ne peuvent pas être déduits du disque : on les laisse à toi de cocher.
+    // Ces statuts ne peuvent pas être déduits du disque : on les laisse à toi de cocher.
+    statusGoogleDrive: false,
     statusPhone: false,
     statusRetouched: false,
     statusDone: false,
@@ -313,6 +316,7 @@ ipcMain.handle('sessions:create', async (_evt, { date, sessionNumber, hasMontage
     nefCount: 0,
     jpegCount: 0,
     retouchedCount: 0,
+    statusGoogleDrive: false,
     statusPhone: false,
     statusRetouched: false,
     statusDone: false,
@@ -328,7 +332,7 @@ ipcMain.handle('sessions:updateFlag', async (_evt, { id, field, value }) => {
   const db = getDb();
   const session = db.data.sessions.find((s) => s.id === id);
   if (!session) throw new Error('Session introuvable');
-  const allowed = ['statusPhone', 'statusRetouched', 'statusDone'];
+  const allowed = ['statusGoogleDrive', 'statusPhone', 'statusRetouched', 'statusDone'];
   if (!allowed.includes(field)) throw new Error('Champ non autorisé');
   session[field] = value;
   await db.write();
@@ -369,6 +373,53 @@ ipcMain.handle('sessions:relocate', async (_evt, { id }) => {
   session.nefCount = countInSubfolder(newPath, NEF_NAMES, ['.nef']);
   session.jpegCount = countInSubfolder(newPath, JPEG_NAMES, ['.jpg', '.jpeg']);
   session.retouchedCount = countInSubfolder(newPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']);
+  await db.write();
+  return { ...session, status: computeStatus(session) };
+});
+
+ipcMain.handle('sessions:updateInfo', async (_evt, { id, date, sessionNumber, hasMontage }) => {
+  const db = getDb();
+  const rootPath = db.data.config.rootPath;
+  const session = db.data.sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session introuvable');
+  if (!rootPath) throw new Error('Aucun dossier racine configuré.');
+
+  const [yearStr, monthStr] = date.split('-');
+  const year = parseInt(yearStr, 10);
+  const monthIndex = parseInt(monthStr, 10) - 1;
+  const monthName = MONTHS_FR[monthIndex] || monthStr;
+
+  const newFolderName = sessionFolderName(sessionNumber, date);
+  const newParentPath = path.join(rootPath, String(year), monthName);
+  const newFolderPath = path.join(newParentPath, newFolderName);
+
+  if (newFolderPath !== session.folderPath) {
+    if (fs.existsSync(newFolderPath)) {
+      throw new Error('Un dossier avec cette date et ce numéro existe déjà à cet emplacement.');
+    }
+    if (fs.existsSync(session.folderPath)) {
+      if (!fs.existsSync(newParentPath)) fs.mkdirSync(newParentPath, { recursive: true });
+      fs.renameSync(session.folderPath, newFolderPath);
+    }
+    session.folderPath = newFolderPath;
+    session.folderName = newFolderName;
+  }
+
+  session.date = date;
+  session.sessionNumber = sessionNumber;
+  session.year = year;
+  session.month = monthIndex + 1;
+  session.monthName = monthName;
+
+  if (hasMontage && resolveSubfolder(session.folderPath, MONTAGE_NAMES) === null) {
+    fs.mkdirSync(path.join(session.folderPath, 'Montage Réseaux'), { recursive: true });
+  }
+  session.hasMontage = !!hasMontage;
+
+  session.nefCount = countInSubfolder(session.folderPath, NEF_NAMES, ['.nef']);
+  session.jpegCount = countInSubfolder(session.folderPath, JPEG_NAMES, ['.jpg', '.jpeg']);
+  session.retouchedCount = countInSubfolder(session.folderPath, RETOUCHE_NAMES, ['.jpg', '.jpeg']);
+
   await db.write();
   return { ...session, status: computeStatus(session) };
 });

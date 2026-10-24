@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('rawpilot', {
     nextNumber: () => ipcRenderer.invoke('sessions:nextNumber'),
     create: (payload) => ipcRenderer.invoke('sessions:create', payload),
     updateFlag: (payload) => ipcRenderer.invoke('sessions:updateFlag', payload),
+    updateInfo: (payload) => ipcRenderer.invoke('sessions:updateInfo', payload),
     openFolder: (payload) => ipcRenderer.invoke('sessions:openFolder', payload),
     refreshCounts: (payload) => ipcRenderer.invoke('sessions:refreshCounts', payload),
     importNef: (payload) => ipcRenderer.invoke('sessions:importNef', payload),

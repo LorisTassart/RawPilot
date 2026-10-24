@@ -131,8 +131,12 @@ ne veux plus la suivre.
   puis RawPilot essaie d'extraire le JPEG intégré à chaque fichier NEF (celui que ton
   appareil enregistre à l'intérieur du RAW) et le place dans `.JPEG`.
 - **Suivi de progression** : "Dossiers créés", "NEF importés" et "JPEG créés" se cochent
-  tout seuls. "Retouché", "Importé sur téléphone" et "Terminé" sont à cocher manuellement,
-  comme demandé.
+  tout seuls. Puis, dans l'ordre : "Importé Google Drive", "Importé sur téléphone",
+  "Retouché" et "Terminé" se cochent manuellement.
+- **Modifier une session** : le lien "✎ modifier" en haut du détail d'une session permet
+  de changer sa date, son numéro, ou d'ajouter/retirer le dossier "Montage Réseaux".
+  Si la date ou le numéro changent, le dossier réel sur le disque est renommé et déplacé
+  automatiquement pour rester cohérent avec l'arborescence Année / Mois.
 - **Recherche** : tape un numéro de session, un mois ou une année dans la barre de recherche.
 - Toutes tes photos restent sur ton disque. L'app ne fait que les organiser : les données
   de suivi (cases cochées, compteurs) sont stockées dans un petit fichier local

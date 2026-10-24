@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Session } from '../types';
 import StatusDot from './StatusDot';
+import EditSessionModal from './EditSessionModal';
 
 interface Props {
   session: Session;
@@ -9,6 +10,7 @@ interface Props {
   onImportNef: () => Promise<void>;
   onRefreshCounts: () => void;
   onRemove: () => void;
+  onInfoUpdated: () => void;
 }
 
 function formatDate(dateStr: string) {
@@ -16,9 +18,28 @@ function formatDate(dateStr: string) {
   return `${d}/${m}/${y}`;
 }
 
-export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onImportNef, onRefreshCounts, onRemove }: Props) {
+type ManualField = 'statusGoogleDrive' | 'statusPhone' | 'statusRetouched' | 'statusDone';
+
+const STEP_ORDER: ManualField[] = ['statusGoogleDrive', 'statusPhone', 'statusRetouched', 'statusDone'];
+const STEP_LABELS: Record<ManualField, string> = {
+  statusGoogleDrive: 'Importé Google Drive',
+  statusPhone: 'Importé sur téléphone',
+  statusRetouched: 'Retouché',
+  statusDone: 'Terminé',
+};
+
+export default function SessionDetail({
+  session,
+  onUpdateFlag,
+  onOpenFolder,
+  onImportNef,
+  onRefreshCounts,
+  onRemove,
+  onInfoUpdated,
+}: Props) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
 
   useEffect(() => {
     const unsubscribe = window.rawpilot.sessions.onImportProgress((data) => {
@@ -40,12 +61,16 @@ export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onI
     }
   }
 
-  function handleCheck(field: 'statusPhone' | 'statusRetouched' | 'statusDone', value: boolean) {
-    if (field === 'statusDone' && value && !session.statusRetouched) {
-      const ok = window.confirm(
-        "Cette session n'est pas encore marquée comme retouchée. Marquer quand même comme terminée ?"
-      );
-      if (!ok) return;
+  function handleCheck(field: ManualField, value: boolean) {
+    if (value) {
+      const idx = STEP_ORDER.indexOf(field);
+      const missingPrior = STEP_ORDER.slice(0, idx).find((f) => !session[f]);
+      if (missingPrior) {
+        const ok = window.confirm(
+          `L'étape "${STEP_LABELS[missingPrior]}" n'est pas encore cochée. Cocher quand même "${STEP_LABELS[field]}" ?`
+        );
+        if (!ok) return;
+      }
     }
     onUpdateFlag(field, value);
   }
@@ -69,13 +94,22 @@ export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onI
             <h2 className="text-2xl font-semibold">Session {session.sessionNumber}</h2>
             <p className="text-ink-dim text-sm">{formatDate(session.date)}</p>
           </div>
-          <button
-            onClick={onRefreshCounts}
-            title="Recompter les fichiers sur le disque"
-            className="text-ink-faint hover:text-ink text-sm px-2 py-1"
-          >
-            ⟳ actualiser
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowEdit(true)}
+              title="Modifier la date, le numéro..."
+              className="text-ink-faint hover:text-ink text-sm px-2 py-1"
+            >
+              ✎ modifier
+            </button>
+            <button
+              onClick={onRefreshCounts}
+              title="Recompter les fichiers sur le disque"
+              className="text-ink-faint hover:text-ink text-sm px-2 py-1"
+            >
+              ⟳ actualiser
+            </button>
+          </div>
         </div>
 
         {/* Compteurs */}
@@ -152,21 +186,26 @@ export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onI
 
           <div className="space-y-2">
             <ChecklistRow
-              label="Retouché"
-              checked={session.statusRetouched}
-              onChange={(v) => handleCheck('statusRetouched', v)}
+              label="Importé Google Drive"
+              checked={session.statusGoogleDrive}
+              onChange={(v) => handleCheck('statusGoogleDrive', v)}
             />
             <ChecklistRow
               label="Importé sur téléphone"
               checked={session.statusPhone}
               onChange={(v) => handleCheck('statusPhone', v)}
             />
+            <ChecklistRow
+              label="Retouché"
+              checked={session.statusRetouched}
+              onChange={(v) => handleCheck('statusRetouched', v)}
+            />
             <ChecklistRow label="Terminé" checked={session.statusDone} onChange={(v) => handleCheck('statusDone', v)} />
           </div>
 
-          {session.statusRetouched && !session.statusPhone && (
+          {STEP_ORDER.some((f, i) => session[f] && STEP_ORDER.slice(0, i).some((prior) => !session[prior])) && (
             <p className="text-xs text-status-progress mt-3">
-              🟡 Retouché mais pas encore importé sur le téléphone — enchaînement inhabituel.
+              🟡 Une étape précédente n'est pas cochée — enchaînement inhabituel.
             </p>
           )}
         </div>
@@ -186,6 +225,14 @@ export default function SessionDetail({ session, onUpdateFlag, onOpenFolder, onI
           </button>
         </div>
       </div>
+
+      {showEdit && (
+        <EditSessionModal
+          session={session}
+          onClose={() => setShowEdit(false)}
+          onUpdated={onInfoUpdated}
+        />
+      )}
     </div>
   );
 }
