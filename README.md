@@ -6,7 +6,7 @@ tableau de bord de progression, recherche.
 
 ## 1. Installer les outils de base (une seule fois)
 
-Tu as dit connaître un peu le dev, donc si tu as déjà Node.js, passe directement à l'étape 2.
+si tu as déjà Node.js, passe directement à l'étape 2.
 
 1. Installe **Node.js** (version 18 ou plus) : https://nodejs.org (prends la version "LTS")
 2. Vérifie l'installation dans un terminal / PowerShell :
